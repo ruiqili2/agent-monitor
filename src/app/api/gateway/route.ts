@@ -102,7 +102,7 @@ function gatewayRequest(
                 mode: 'backend',
               },
               role: 'operator',
-              scopes: ['operator.read'],
+              scopes: ['operator.read', 'operator.admin'],
               caps: [],
               commands: [],
               permissions: {},

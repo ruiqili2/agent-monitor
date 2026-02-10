@@ -67,7 +67,7 @@ export default function ActivityFeed({ events, maxHeight = 400 }: ActivityFeedPr
           return (
             <div
               key={event.id}
-              className="flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5 transition-colors animate-in fade-in slide-in-from-top-1 duration-300"
+              className="flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5 transition-colors"
             >
               <span className="text-xs flex-shrink-0 mt-0.5">{style.icon}</span>
               <div className="flex-1 min-w-0">

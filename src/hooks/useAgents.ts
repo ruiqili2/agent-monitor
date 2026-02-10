@@ -40,8 +40,11 @@ export interface UseAgentsReturn {
   demoMode: boolean;
   connected: boolean;
   chatMessages: Record<string, ChatMessage[]>;
+  /** Map from session ID → session key (for API calls) */
+  sessionKeys: Record<string, string>;
   sendChat: (agentId: string, message: string) => void;
   setBehavior: (agentId: string, behavior: AgentBehavior) => void;
+  restartSession: (agentId: string) => Promise<void>;
 }
 
 const DEMO_BEHAVIORS: AgentBehavior[] = [
@@ -69,12 +72,14 @@ const AGENT_COLORS = ['#4FC3F7', '#66BB6A', '#FFCA28', '#AB47BC', '#EF5350', '#F
 const AGENT_EMOJIS = ['⚡', '🔥', '🌟', '🎯', '🚀', '🧠'];
 
 function sessionToAgentConfig(sess: GatewaySessionInfo, index: number): AgentConfig {
+  // Main session gets special treatment
+  const isMain = !sess.isSubagent;
   return {
     id: sess.id,
-    name: sess.name,
-    emoji: AGENT_EMOJIS[index % AGENT_EMOJIS.length],
-    color: AGENT_COLORS[index % AGENT_COLORS.length],
-    avatar: AGENT_AVATARS[index % AGENT_AVATARS.length],
+    name: isMain ? 'Lipo' : sess.name,
+    emoji: isMain ? '⚡' : AGENT_EMOJIS[(index) % AGENT_EMOJIS.length],
+    color: isMain ? '#4FC3F7' : AGENT_COLORS[(index) % AGENT_COLORS.length],
+    avatar: isMain ? 'glasses' : AGENT_AVATARS[(index) % AGENT_AVATARS.length],
   };
 }
 
@@ -104,6 +109,7 @@ function sessionToDashboardState(sess: GatewaySessionInfo): AgentDashboardState 
       `Model: ${sess.model}`,
       `Channel: ${sess.channel}`,
       `Tokens: ${sess.totalTokens.toLocaleString()}`,
+      `Key: ${sess.key}`,
       sess.aborted ? '⚠️ Last run aborted' : '',
       sess.currentTask ? `Current: ${sess.currentTask}` : '',
     ].filter(Boolean),
@@ -126,6 +132,7 @@ export function useAgents(forceDemoMode = false): UseAgentsReturn {
   const [activityFeed, setActivityFeed] = useState<ActivityEvent[]>([]);
   const [systemStats, setSystemStats] = useState<SystemStats>(() => generateDemoStats(DEMO_AGENTS));
   const [chatMessages, setChatMessages] = useState<Record<string, ChatMessage[]>>({});
+  const [sessionKeys, setSessionKeys] = useState<Record<string, string>>({});
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const demoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const feedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -152,6 +159,13 @@ export function useAgents(forceDemoMode = false): UseAgentsReturn {
       // Build agent configs from sessions
       const newAgents = data.sessions.map((sess, i) => sessionToAgentConfig(sess, i));
       setAgents(newAgents);
+
+      // Build session key map (sessionId → sessionKey)
+      const newKeys: Record<string, string> = {};
+      for (const sess of data.sessions) {
+        newKeys[sess.id] = sess.key;
+      }
+      setSessionKeys(newKeys);
 
       // Build dashboard states
       const newStates: Record<string, AgentDashboardState> = {};
@@ -270,6 +284,39 @@ export function useAgents(forceDemoMode = false): UseAgentsReturn {
     });
   }, []);
 
+  const restartSession = useCallback(async (agentId: string) => {
+    const key = sessionKeys[agentId];
+    if (!key) return;
+
+    try {
+      const resp = await fetch('/api/gateway/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reset', sessionKey: key }),
+      });
+      const data = await resp.json();
+
+      // Add activity event
+      const agent = agents.find(a => a.id === agentId);
+      if (agent) {
+        setActivityFeed(prev => [{
+          id: `restart-${Date.now()}`,
+          agentId,
+          agentName: agent.name,
+          agentEmoji: agent.emoji,
+          type: 'system' as const,
+          message: data.ok ? '🔄 Session reset' : `❌ Reset failed: ${data.error}`,
+          timestamp: Date.now(),
+        }, ...prev].slice(0, 50));
+      }
+
+      // Force immediate re-poll
+      setTimeout(() => pollGateway(), 1000);
+    } catch (err) {
+      console.error('Restart failed:', err);
+    }
+  }, [sessionKeys, agents, pollGateway]);
+
   const sendChat = useCallback((agentId: string, message: string) => {
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}-user`,
@@ -297,8 +344,42 @@ export function useAgents(forceDemoMode = false): UseAgentsReturn {
           [agentId]: [...(prev[agentId] || []), response],
         }));
       }, 1000 + Math.random() * 2000);
+    } else {
+      // Real mode: send via gateway
+      const key = sessionKeys[agentId];
+      if (key) {
+        fetch('/api/gateway/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'send', sessionKey: key, message }),
+        }).then(resp => resp.json()).then(data => {
+          const response: ChatMessage = {
+            id: `msg-${Date.now()}-agent`,
+            agentId,
+            role: 'agent',
+            content: data.ok ? '✅ Message sent to session' : `❌ ${data.error}`,
+            timestamp: Date.now(),
+          };
+          setChatMessages(prev => ({
+            ...prev,
+            [agentId]: [...(prev[agentId] || []), response],
+          }));
+        }).catch(() => {
+          const response: ChatMessage = {
+            id: `msg-${Date.now()}-agent`,
+            agentId,
+            role: 'agent',
+            content: '❌ Failed to send message',
+            timestamp: Date.now(),
+          };
+          setChatMessages(prev => ({
+            ...prev,
+            [agentId]: [...(prev[agentId] || []), response],
+          }));
+        });
+      }
     }
-  }, [demoMode]);
+  }, [demoMode, sessionKeys]);
 
   return {
     agents,
@@ -308,7 +389,9 @@ export function useAgents(forceDemoMode = false): UseAgentsReturn {
     demoMode,
     connected,
     chatMessages,
+    sessionKeys,
     sendChat,
     setBehavior,
+    restartSession,
   };
 }

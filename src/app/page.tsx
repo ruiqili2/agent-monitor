@@ -26,6 +26,7 @@ export default function DashboardPage() {
     chatMessages,
     sendChat,
     setBehavior,
+    restartSession,
   } = useAgents();
 
   const openAgent = chatAgent ? agents.find((a) => a.id === chatAgent) : null;
@@ -63,6 +64,7 @@ export default function DashboardPage() {
               agents={agents}
               agentStates={agentStates}
               onChatClick={(id) => setChatAgent(id)}
+              onRestart={(id) => restartSession(id)}
             />
           </div>
           <div>

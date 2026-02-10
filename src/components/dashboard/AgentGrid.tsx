@@ -11,9 +11,10 @@ interface AgentGridProps {
   agents: AgentConfig[];
   agentStates: Record<string, AgentDashboardState>;
   onChatClick: (agentId: string) => void;
+  onRestart?: (agentId: string) => void;
 }
 
-export default function AgentGrid({ agents, agentStates, onChatClick }: AgentGridProps) {
+export default function AgentGrid({ agents, agentStates, onChatClick, onRestart }: AgentGridProps) {
   if (agents.length === 0) {
     return (
       <div
@@ -25,7 +26,7 @@ export default function AgentGrid({ agents, agentStates, onChatClick }: AgentGri
           No agents configured
         </p>
         <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
-          Add agents in Settings
+          Connect to an OpenClaw Gateway to see agents
         </p>
       </div>
     );
@@ -35,7 +36,7 @@ export default function AgentGrid({ agents, agentStates, onChatClick }: AgentGri
     <div>
       <h2 className="font-pixel text-sm mb-3 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
         <span>🤖</span>
-        <span>Agents</span>
+        <span>Sessions</span>
         <span className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
           ({agents.length})
         </span>
@@ -47,6 +48,7 @@ export default function AgentGrid({ agents, agentStates, onChatClick }: AgentGri
             agent={agent}
             state={agentStates[agent.id]}
             onChatClick={onChatClick}
+            onRestart={onRestart}
           />
         ))}
       </div>

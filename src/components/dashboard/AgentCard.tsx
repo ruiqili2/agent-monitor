@@ -15,6 +15,7 @@ interface AgentCardProps {
   agent: AgentConfig;
   state: AgentDashboardState | undefined;
   onChatClick: (agentId: string) => void;
+  onRestart?: (agentId: string) => void;
 }
 
 function PixelAvatar({ agent, size = 48 }: { agent: AgentConfig; size?: number }) {
@@ -55,15 +56,17 @@ function TokenBar({ used, max }: { used: number; max: number }) {
           style={{ width: `${pct}%`, backgroundColor: color }}
         />
       </div>
-      <span className="text-[10px] font-mono font-pixel" style={{ color }}>{formatTokens(used)}</span>
+      <span className="text-[10px] font-mono" style={{ color }}>{formatTokens(used)}</span>
     </div>
   );
 }
 
-export default function AgentCard({ agent, state, onChatClick }: AgentCardProps) {
+export default function AgentCard({ agent, state, onChatClick, onRestart }: AgentCardProps) {
   const [relativeTime, setRelativeTime] = useState('');
+  const [restarting, setRestarting] = useState(false);
   const behavior = state?.behavior ?? 'idle';
   const info = BEHAVIOR_INFO[behavior];
+  const isAnomaly = info.category === 'anomaly';
 
   useEffect(() => {
     const update = () => {
@@ -73,6 +76,16 @@ export default function AgentCard({ agent, state, onChatClick }: AgentCardProps)
     const timer = setInterval(update, 1000);
     return () => clearInterval(timer);
   }, [state?.lastActivity, state]);
+
+  const handleRestart = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (restarting || !onRestart) return;
+    setRestarting(true);
+    onRestart(agent.id);
+    // Reset after a few seconds
+    setTimeout(() => setRestarting(false), 3000);
+  };
 
   return (
     <div
@@ -107,6 +120,15 @@ export default function AgentCard({ agent, state, onChatClick }: AgentCardProps)
         </div>
       </div>
 
+      {/* Model info */}
+      {state?.sessionLog?.[0] && (
+        <div className="mb-1.5">
+          <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>
+            {state.sessionLog[0]}
+          </span>
+        </div>
+      )}
+
       {/* Current task */}
       <div className="mb-2">
         <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>Current: </span>
@@ -126,6 +148,18 @@ export default function AgentCard({ agent, state, onChatClick }: AgentCardProps)
           Last: {relativeTime}
         </span>
         <div className="flex items-center gap-1">
+          {/* Restart button — shown for crashed/dead agents or always available */}
+          {onRestart && (
+            <button
+              onClick={handleRestart}
+              disabled={restarting}
+              className="p-1 rounded hover:bg-white/10 transition-colors text-sm"
+              title={isAnomaly ? 'Restart agent (crashed)' : 'Reset session'}
+              style={isAnomaly ? { color: 'var(--accent-danger)' } : undefined}
+            >
+              {restarting ? '⏳' : '🔄'}
+            </button>
+          )}
           <button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onChatClick(agent.id); }}
             className="p-1 rounded hover:bg-white/10 transition-colors text-sm"
