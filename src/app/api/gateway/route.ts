@@ -217,11 +217,24 @@ export async function GET() {
       };
     });
 
+    // Deduplicate: if multiple sessions share the same agent prefix
+    // (e.g. agent:main:main and agent:main), keep the one with more tokens
+    const sessionMap = new Map<string, typeof sessions[0]>();
+    for (const sess of sessions) {
+      // Group key: for "agent:main:main" → "agent:main", for subagents keep full key
+      const groupKey = sess.isSubagent ? sess.key : sess.key.split(':').slice(0, 2).join(':');
+      const existing = sessionMap.get(groupKey);
+      if (!existing || sess.totalTokens > existing.totalTokens || (sess.totalTokens === existing.totalTokens && sess.lastActivity > existing.lastActivity)) {
+        sessionMap.set(groupKey, sess);
+      }
+    }
+    const dedupedSessions = Array.from(sessionMap.values());
+
     return NextResponse.json({
       ok: true,
       timestamp: now,
-      count: sessions.length,
-      sessions,
+      count: dedupedSessions.length,
+      sessions: dedupedSessions,
     });
   } catch (err) {
     return NextResponse.json(
