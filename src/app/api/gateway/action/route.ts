@@ -125,9 +125,11 @@ export async function POST(request: Request) {
         if (!sessionKey || !message) {
           return NextResponse.json({ error: 'sessionKey and message required' }, { status: 400 });
         }
+        const idempotencyKey = `am-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const result = await gatewayRequest(config.url, config.token, 'chat.send', {
-          key: sessionKey,
-          message: { role: 'user', content: message },
+          sessionKey,
+          idempotencyKey,
+          message,
         });
         return NextResponse.json({ ok: true, result });
       }
