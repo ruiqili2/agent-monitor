@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect } from 'react';
 import type { OfficeState, AgentConfig, OwnerConfig } from '@/lib/types';
 import { renderFrame } from '@/engine/canvas';
 
@@ -45,42 +45,49 @@ export default function OfficeCanvasInner({
   const animRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
 
-  const render = useCallback((timestamp: number) => {
-    if (timestamp - lastTimeRef.current >= 1000 / 30) {
-      lastTimeRef.current = timestamp;
-      onTick();
-
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      ctx.save();
-      if (scale !== 1) {
-        ctx.scale(scale, scale);
-      }
-
-      renderFrame(ctx, width, height, officeState, {
-        agents,
-        owner,
-        connected,
-        demoMode,
-      });
-
-      ctx.restore();
-    }
-
-    animRef.current = requestAnimationFrame(render);
-  }, [officeState, agents, owner, connected, demoMode, onTick, width, height, scale]);
+  // Store latest props in refs so the animation loop always sees current values
+  const propsRef = useRef({ officeState, agents, owner, connected, demoMode, onTick, width, height, scale });
+  useEffect(() => {
+    propsRef.current = { officeState, agents, owner, connected, demoMode, onTick, width, height, scale };
+  });
 
   useEffect(() => {
+    const render = (timestamp: number) => {
+      const { officeState: os, agents: ag, owner: ow, connected: cn, demoMode: dm, onTick: ot, width: w, height: h, scale: sc } = propsRef.current;
+      if (timestamp - lastTimeRef.current >= 1000 / 30) {
+        lastTimeRef.current = timestamp;
+        ot();
+
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.save();
+        if (sc !== 1) {
+          ctx.scale(sc, sc);
+        }
+
+        renderFrame(ctx, w, h, os, {
+          agents: ag,
+          owner: ow,
+          connected: cn,
+          demoMode: dm,
+        });
+
+        ctx.restore();
+      }
+
+      animRef.current = requestAnimationFrame(render);
+    };
+
     animRef.current = requestAnimationFrame(render);
     return () => {
       if (animRef.current) {
         cancelAnimationFrame(animRef.current);
       }
     };
-  }, [render]);
+  }, []);
 
   const cssWidth = displayWidth ?? width;
   const cssHeight = displayHeight ?? height;

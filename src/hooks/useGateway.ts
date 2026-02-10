@@ -1,6 +1,7 @@
 // ============================================================================
 // useGateway — Gateway connection management hook
 // ============================================================================
+/* eslint-disable react-hooks/set-state-in-effect */
 
 'use client';
 

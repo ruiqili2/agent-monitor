@@ -1,6 +1,7 @@
 // ============================================================================
 // useOffice — Office state management hook
 // ============================================================================
+/* eslint-disable react-hooks/set-state-in-effect */
 
 'use client';
 
@@ -88,8 +89,8 @@ export function useOffice(
     setOfficeState(prev => {
       const newTick = prev.tick + 1;
       const newAgents: AgentRuntime[] = [];
-      let newBubbles = prev.bubbles.map(b => ({ ...b, ttl: b.ttl - 1 })).filter(b => b.ttl > 0);
-      let newParticles = tickParticles(prev.particles);
+      const newBubbles = prev.bubbles.map(b => ({ ...b, ttl: b.ttl - 1 })).filter(b => b.ttl > 0);
+      const newParticles = tickParticles(prev.particles);
 
       for (const runtime of prev.agents) {
         const dashState = agentStates[runtime.id];

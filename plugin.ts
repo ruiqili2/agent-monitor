@@ -16,7 +16,7 @@
 
 import { spawn, type ChildProcess } from "child_process";
 import { join, dirname } from "path";
-import { existsSync } from "fs";
+import { existsSync, cpSync } from "fs";
 import { fileURLToPath } from "url";
 
 interface AgentMonitorConfig {
@@ -43,6 +43,7 @@ const agentMonitorPlugin = {
   description:
     "Real-time AI agent visualization & monitoring dashboard with pixel-art office",
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   register(api: any) {
     const config = resolveConfig(api.pluginConfig);
 
@@ -69,11 +70,9 @@ const agentMonitorPlugin = {
       const publicDst = join(standaloneDir, "public");
       try {
         if (existsSync(staticSrc) && !existsSync(staticDst)) {
-          const { cpSync } = require("fs");
           cpSync(staticSrc, staticDst, { recursive: true });
         }
         if (existsSync(publicSrc) && !existsSync(publicDst)) {
-          const { cpSync } = require("fs");
           cpSync(publicSrc, publicDst, { recursive: true });
         }
       } catch {
@@ -184,6 +183,7 @@ const agentMonitorPlugin = {
 
     // Register a CLI command for quick access
     api.registerCli(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ({ program }: any) => {
         program
           .command("monitor")
