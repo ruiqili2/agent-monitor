@@ -97,11 +97,10 @@ export function useAgents(
         const agent = agentConfigs[agentIdx];
         if (agent && next[agent.id]) {
           const newBehavior = DEMO_BEHAVIORS[Math.floor(Math.random() * DEMO_BEHAVIORS.length)];
-          const info = BEHAVIOR_INFO[newBehavior];
           next[agent.id] = {
             ...next[agent.id],
             behavior: newBehavior,
-            officeState: newBehavior,
+            officeState: behaviorToOfficeState(newBehavior),
             lastActivity: Date.now(),
             totalTokens: next[agent.id].totalTokens + Math.floor(Math.random() * 500),
           };
@@ -138,7 +137,7 @@ export function useAgents(
           next[agentId] = {
             ...next[agentId],
             behavior,
-            officeState: behavior,
+            officeState: behaviorToOfficeState(behavior),
             lastActivity: Date.now(),
           };
         }
@@ -155,7 +154,7 @@ export function useAgents(
         [agentId]: {
           ...prev[agentId],
           behavior,
-          officeState: behavior,
+          officeState: behaviorToOfficeState(behavior),
           lastActivity: Date.now(),
         },
       };

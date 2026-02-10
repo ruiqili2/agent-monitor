@@ -16,7 +16,7 @@ export interface UseGatewayReturn {
   error: string | null;
 }
 
-export function useGateway(initialConfig?: GatewayConfig): UseGatewayReturn {
+export function useGateway(initialConfig?: GatewayConfig, enabled = true): UseGatewayReturn {
   const [connected, setConnected] = useState(false);
   const [status, setStatus] = useState<GatewayStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -60,15 +60,17 @@ export function useGateway(initialConfig?: GatewayConfig): UseGatewayReturn {
   }, []);
 
   useEffect(() => {
-    if (initialConfig && initialConfig.url) {
+    if (enabled && initialConfig && initialConfig.url) {
       connect(initialConfig);
+    } else {
+      disconnect();
     }
     return () => {
       if (pollerRef.current) {
         pollerRef.current.stop();
       }
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { connected, status, connect, disconnect, error };
 }

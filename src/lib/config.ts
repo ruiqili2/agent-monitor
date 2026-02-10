@@ -12,6 +12,8 @@ import type {
   OwnerAvatar,
 } from './types';
 
+export type { DashboardConfig, AgentConfig, OwnerConfig, GatewayConfig, ThemeName, AgentAvatar, OwnerAvatar };
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------

@@ -166,7 +166,7 @@ export function generateDemoAgentState(agentId: string): AgentDashboardState {
 
   return {
     behavior,
-    officeState: behavior,
+    officeState: behaviorToOfficeState(behavior),
     currentTask,
     taskHistory,
     tokenUsage,

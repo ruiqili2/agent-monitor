@@ -1,26 +1,148 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ============================================================================
+   AgentMonitor — Theme System
+   ============================================================================ */
+
+/* Default (Midnight) */
+[data-theme="default"], :root {
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #10101a;
+  --bg-card: rgba(26, 26, 46, 0.8);
+  --bg-card-hover: rgba(36, 36, 56, 0.9);
+  --text-primary: #e0e0e0;
+  --text-secondary: #888888;
+  --accent-primary: #4FC3F7;
+  --accent-success: #66BB6A;
+  --accent-warning: #FFCA28;
+  --accent-danger: #EF5350;
+  --accent-info: #AB47BC;
+  --border: rgba(255, 255, 255, 0.1);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Dark (Void) */
+[data-theme="dark"] {
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-card: rgba(15, 15, 20, 0.9);
+  --bg-card-hover: rgba(25, 25, 35, 0.95);
+  --text-primary: #c0c0c0;
+  --text-secondary: #666666;
+  --accent-primary: #5C6BC0;
+  --accent-success: #4CAF50;
+  --accent-warning: #FF9800;
+  --accent-danger: #F44336;
+  --accent-info: #7E57C2;
+  --border: rgba(255, 255, 255, 0.06);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Cozy (Warm) */
+[data-theme="cozy"] {
+  --bg-primary: #1a1008;
+  --bg-secondary: #1f150c;
+  --bg-card: rgba(45, 30, 15, 0.8);
+  --bg-card-hover: rgba(55, 40, 25, 0.9);
+  --text-primary: #f0e0d0;
+  --text-secondary: #a08060;
+  --accent-primary: #FFB74D;
+  --accent-success: #81C784;
+  --accent-warning: #FFD54F;
+  --accent-danger: #E57373;
+  --accent-info: #CE93D8;
+  --border: rgba(255, 180, 80, 0.15);
 }
+
+/* Cyberpunk (Neon) */
+[data-theme="cyberpunk"] {
+  --bg-primary: #0a0012;
+  --bg-secondary: #100020;
+  --bg-card: rgba(30, 0, 50, 0.8);
+  --bg-card-hover: rgba(40, 0, 70, 0.9);
+  --text-primary: #e0d0f0;
+  --text-secondary: #9070b0;
+  --accent-primary: #FF4081;
+  --accent-success: #00E676;
+  --accent-warning: #FFEA00;
+  --accent-danger: #FF1744;
+  --accent-info: #D500F9;
+  --border: rgba(255, 64, 129, 0.15);
+}
+
+/* ============================================================================
+   Typography
+   ============================================================================ */
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Inter", "JetBrains Mono", sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.font-pixel {
+  font-family: "Press Start 2P", monospace;
+}
+
+.font-mono {
+  font-family: "JetBrains Mono", monospace;
+}
+
+/* ============================================================================
+   Animations
+   ============================================================================ */
+
+@keyframes slide-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* ============================================================================
+   Scrollbar
+   ============================================================================ */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ============================================================================
+   Canvas
+   ============================================================================ */
+
+canvas {
+  image-rendering: pixelated;
 }
