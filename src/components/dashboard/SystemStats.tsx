@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import type { SystemStats as SystemStatsType } from '@/lib/types';
-import { formatTokens, formatUptime } from '@/lib/state-mapper';
+import { formatTokens } from '@/lib/state-mapper';
 
 interface SystemStatsProps {
   stats: SystemStatsType;
@@ -43,15 +43,14 @@ function AnimatedNumber({ value, format }: { value: number; format?: (n: number)
 
 export default function SystemStats({ stats }: SystemStatsProps) {
   const items = [
-    { label: 'Agents', value: stats.totalAgents, icon: '🤖', color: 'var(--accent-primary)' },
+    { label: 'Sessions', value: stats.totalAgents, icon: '🤖', color: 'var(--accent-primary)' },
     { label: 'Active', value: stats.activeAgents, icon: '⚡', color: 'var(--accent-success)' },
     { label: 'Tokens', value: stats.totalTokens, icon: '🪙', color: 'var(--accent-warning)', format: formatTokens },
-    { label: 'Tasks', value: stats.totalTasks, icon: '📋', color: 'var(--accent-info)' },
-    { label: 'Uptime', value: stats.uptime, icon: '⏱️', color: 'var(--text-secondary)', format: formatUptime },
+    { label: 'Failed', value: stats.failedTasks, icon: '❌', color: 'var(--accent-danger)' },
   ];
 
   return (
-    <div className="grid grid-cols-5 gap-3">
+    <div className="grid grid-cols-4 gap-3">
       {items.map(item => (
         <div
           key={item.label}

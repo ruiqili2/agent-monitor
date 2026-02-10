@@ -168,36 +168,24 @@ export async function GET() {
       const age = now - s.updatedAt;
       const isSubagent = s.key.includes('subagent');
 
-      // Infer behavior from available fields
+      // Infer behavior from timing — this is best-effort since gateway
+      // doesn't expose explicit agent state
       let behavior = 'idle';
-      let currentTask = '';
       let isActive = false;
 
       if (s.abortedLastRun) {
         behavior = 'dead';
-        currentTask = 'Aborted';
-      } else if (s.systemSent && age < 60000) {
-        // System prompt sent recently = agent is active / thinking
-        behavior = 'coding';
-        isActive = true;
-        currentTask = 'Working...';
       } else if (age < 30000) {
-        // Updated very recently — likely active
         behavior = 'coding';
         isActive = true;
-        currentTask = 'Processing...';
       } else if (age < 120000) {
-        // Within 2 minutes — thinking
         behavior = 'thinking';
         isActive = true;
       } else if (age < 600000) {
-        // Within 10 minutes — idle
         behavior = 'idle';
       } else if (age < 3600000) {
-        // Within 1 hour — coffee break
         behavior = 'coffee';
       } else {
-        // Older — sleeping
         behavior = 'sleeping';
       }
 
@@ -208,7 +196,6 @@ export async function GET() {
         const subId = keyParts[keyParts.length - 1] ?? '';
         agentName = `Sub-${subId.slice(0, 6)}`;
       } else {
-        // Main session: use agent id (e.g. "main")
         const agentId = keyParts[1] ?? 'main';
         agentName = agentId.charAt(0).toUpperCase() + agentId.slice(1);
       }
@@ -222,7 +209,6 @@ export async function GET() {
         contextTokens: s.contextTokens ?? 0,
         channel: s.lastChannel ?? s.channel,
         behavior,
-        currentTask,
         isActive,
         isSubagent,
         lastActivity: s.updatedAt,

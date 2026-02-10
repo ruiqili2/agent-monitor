@@ -129,17 +129,18 @@ export default function AgentCard({ agent, state, onChatClick, onRestart }: Agen
         </div>
       )}
 
-      {/* Current task */}
-      <div className="mb-2">
-        <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>Current: </span>
-        <span className="text-xs" style={{ color: 'var(--text-primary)' }}>
-          {state?.currentTask?.title ?? 'No active task'}
-        </span>
-      </div>
+      {/* Channel info */}
+      {state?.sessionLog?.[1] && (
+        <div className="mb-2">
+          <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>
+            {state.sessionLog[1]}
+          </span>
+        </div>
+      )}
 
       {/* Token bar */}
       <div className="mb-2">
-        <TokenBar used={state?.totalTokens ?? 0} max={200000} />
+        <TokenBar used={state?.totalTokens ?? 0} max={state?.contextTokens || 128000} />
       </div>
 
       {/* Footer: Last activity + Actions */}

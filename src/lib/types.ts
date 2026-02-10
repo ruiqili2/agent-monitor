@@ -280,6 +280,7 @@ export interface AgentDashboardState {
   taskHistory: AgentTask[];
   tokenUsage: TokenUsage[];
   totalTokens: number;
+  contextTokens?: number;
   totalTasks: number;
   lastActivity: number;
   sessionLog: string[];

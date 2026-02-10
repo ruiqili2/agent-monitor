@@ -85,35 +85,23 @@ function sessionToAgentConfig(sess: GatewaySessionInfo, index: number): AgentCon
 
 function sessionToDashboardState(sess: GatewaySessionInfo): AgentDashboardState {
   const behavior = (sess.behavior ?? 'idle') as AgentBehavior;
-  const now = Date.now();
   return {
     behavior,
     officeState: behaviorToOfficeState(behavior),
-    currentTask: sess.currentTask ? {
-      id: `task-${sess.id}`,
-      title: sess.currentTask,
-      status: sess.isActive ? 'active' : 'completed',
-      startedAt: sess.lastActivity,
-    } : null,
+    currentTask: null,
     taskHistory: [],
-    tokenUsage: [{
-      timestamp: now,
-      input: 0,
-      output: 0,
-      total: sess.totalTokens,
-    }],
+    tokenUsage: [],
     totalTokens: sess.totalTokens,
-    totalTasks: sess.isActive ? 1 : 0,
+    contextTokens: sess.contextTokens,
+    totalTasks: 0,
     lastActivity: sess.lastActivity,
     sessionLog: [
       `Model: ${sess.model}`,
       `Channel: ${sess.channel}`,
       `Tokens: ${sess.totalTokens.toLocaleString()}`,
-      `Key: ${sess.key}`,
       sess.aborted ? '⚠️ Last run aborted' : '',
-      sess.currentTask ? `Current: ${sess.currentTask}` : '',
     ].filter(Boolean),
-    uptime: now - sess.updatedAt,
+    uptime: 0,
   };
 }
 
@@ -196,15 +184,15 @@ export function useAgents(forceDemoMode = false): UseAgentsReturn {
         prevBehaviorsRef.current[sess.id] = sess.behavior;
       }
 
-      // System stats
+      // System stats — only real data from gateway
       setSystemStats({
         totalAgents: data.sessions.length,
         activeAgents: data.sessions.filter(s => s.isActive).length,
         totalTokens: data.sessions.reduce((sum, s) => sum + s.totalTokens, 0),
-        totalTasks: data.sessions.filter(s => s.isActive).length,
-        completedTasks: data.sessions.filter(s => !s.isActive && !s.aborted).length,
+        totalTasks: 0,
+        completedTasks: 0,
         failedTasks: data.sessions.filter(s => s.aborted).length,
-        uptime: Math.floor((Date.now() - Math.min(...data.sessions.map(s => s.updatedAt))) / 1000),
+        uptime: 0,
         connected: true,
       });
 

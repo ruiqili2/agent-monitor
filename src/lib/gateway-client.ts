@@ -17,7 +17,6 @@ export interface GatewaySessionInfo {
   contextTokens: number;
   channel: string;
   behavior: string;
-  currentTask: string;
   isActive: boolean;
   isSubagent: boolean;
   lastActivity: number;
