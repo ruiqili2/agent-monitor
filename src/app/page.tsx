@@ -10,6 +10,7 @@ import MiniOffice from "@/components/office/MiniOffice";
 import SettingsPanel from "@/components/settings/SettingsPanel";
 import ChatWindow from "@/components/chat/ChatWindow";
 import type { DashboardConfig, ThemeName } from "@/lib/types";
+import { loadConfig, DEFAULT_OWNER } from "@/lib/config";
 
 export default function DashboardPage() {
   const [showSettings, setShowSettings] = useState(false);
@@ -31,7 +32,12 @@ export default function DashboardPage() {
 
   const openAgent = chatAgent ? agents.find((a) => a.id === chatAgent) : null;
 
-  const ownerConfig = { name: "Zoe", emoji: "👩‍💻", avatar: "boss" as const };
+  const [ownerConfig] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return loadConfig().owner;
+    }
+    return DEFAULT_OWNER;
+  });
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)]" data-theme={theme}>

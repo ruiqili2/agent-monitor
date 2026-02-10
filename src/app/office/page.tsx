@@ -7,6 +7,7 @@ import OfficeCanvasInner from "@/components/office/OfficeCanvas";
 import OfficeControls from "@/components/office/OfficeControls";
 import ChatWindow from "@/components/chat/ChatWindow";
 import type { AgentBehavior } from "@/lib/types";
+import { loadConfig, DEFAULT_OWNER } from "@/lib/config";
 
 export default function OfficePage() {
   const [chatAgent, setChatAgent] = useState<string | null>(null);
@@ -23,7 +24,12 @@ export default function OfficePage() {
 
   const { officeState, tick } = useOffice(agents, agentStates);
 
-  const ownerConfig = { name: "Zoe", emoji: "👩‍💻", avatar: "boss" as const };
+  const [ownerConfig] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return loadConfig().owner;
+    }
+    return DEFAULT_OWNER;
+  });
   const openAgent = chatAgent ? agents.find((a) => a.id === chatAgent) : null;
 
   return (
