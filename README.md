@@ -12,6 +12,8 @@ Watch your AI agents work in a **pixel-art office**. Monitor status, chat with t
 <!-- TODO: Add screenshot/GIF here -->
 <!-- ![AgentMonitor Screenshot](docs/screenshot.png) -->
 
+<img width="2538" height="1262" alt="image" src="https://github.com/user-attachments/assets/908f2447-ec91-4d17-93b1-3d327cafe478" />
+
 ---
 
 ## ⚡ Quick Start
