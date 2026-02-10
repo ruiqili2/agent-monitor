@@ -1,6 +1,7 @@
 // ============================================================================
 // useAgents — Agent state management hook
-// Polls /api/gateway for real OpenClaw session data
+// Uses SSE (EventSource) for real-time state updates from the gateway,
+// with an initial fetch + slow periodic refetch for metadata (tokens, etc.)
 // Falls back to demo mode if gateway is unreachable
 // ============================================================================
 
@@ -72,12 +73,11 @@ const AGENT_COLORS = ['#4FC3F7', '#66BB6A', '#FFCA28', '#AB47BC', '#EF5350', '#F
 const AGENT_EMOJIS = ['⚡', '🔥', '🌟', '🎯', '🚀', '🧠'];
 
 function sessionToAgentConfig(sess: GatewaySessionInfo, index: number): AgentConfig {
-  // Main session gets special treatment
   const isMain = !sess.isSubagent;
   return {
     id: sess.id,
-    name: isMain ? 'Lipo' : sess.name,
-    emoji: isMain ? '⚡' : AGENT_EMOJIS[(index) % AGENT_EMOJIS.length],
+    name: sess.name,
+    emoji: sess.emoji ?? (isMain ? '⚡' : AGENT_EMOJIS[(index) % AGENT_EMOJIS.length]),
     color: isMain ? '#4FC3F7' : AGENT_COLORS[(index) % AGENT_COLORS.length],
     avatar: isMain ? 'glasses' : AGENT_AVATARS[(index) % AGENT_AVATARS.length],
   };
@@ -121,14 +121,21 @@ export function useAgents(forceDemoMode = false): UseAgentsReturn {
   const [systemStats, setSystemStats] = useState<SystemStats>(() => generateDemoStats(DEMO_AGENTS));
   const [chatMessages, setChatMessages] = useState<Record<string, ChatMessage[]>>({});
   const [sessionKeys, setSessionKeys] = useState<Record<string, string>>({});
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Refs for cleanup and tracking
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const metadataTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const demoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const feedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevBehaviorsRef = useRef<Record<string, string>>({});
+  /** Maps session key → session id (for patching state by key) */
+  const keyToIdRef = useRef<Record<string, string>>({});
 
-  // Poll /api/gateway for real data
-  const pollGateway = useCallback(async () => {
-    if (forceDemoMode) return;
+  // ------------------------------------------------------------------
+  // Fetch full session data from /api/gateway (metadata + current state)
+  // ------------------------------------------------------------------
+  const fetchSessions = useCallback(async (): Promise<boolean> => {
+    if (forceDemoMode) return false;
 
     try {
       const resp = await fetch('/api/gateway', { signal: AbortSignal.timeout(10000) });
@@ -136,9 +143,7 @@ export function useAgents(forceDemoMode = false): UseAgentsReturn {
       const data = (await resp.json()) as GatewayApiResponse;
 
       if (!data.ok || !data.sessions?.length) {
-        setConnected(false);
-        setDemoMode(true);
-        return;
+        return false;
       }
 
       setConnected(true);
@@ -148,12 +153,15 @@ export function useAgents(forceDemoMode = false): UseAgentsReturn {
       const newAgents = data.sessions.map((sess, i) => sessionToAgentConfig(sess, i));
       setAgents(newAgents);
 
-      // Build session key map (sessionId → sessionKey)
+      // Build session key map (sessionId → sessionKey) + reverse map
       const newKeys: Record<string, string> = {};
+      const newKeyToId: Record<string, string> = {};
       for (const sess of data.sessions) {
         newKeys[sess.id] = sess.key;
+        newKeyToId[sess.key] = sess.id;
       }
       setSessionKeys(newKeys);
+      keyToIdRef.current = newKeyToId;
 
       // Build dashboard states
       const newStates: Record<string, AgentDashboardState> = {};
@@ -184,7 +192,7 @@ export function useAgents(forceDemoMode = false): UseAgentsReturn {
         prevBehaviorsRef.current[sess.id] = sess.behavior;
       }
 
-      // System stats — only real data from gateway
+      // System stats
       setSystemStats({
         totalAgents: data.sessions.length,
         activeAgents: data.sessions.filter(s => s.isActive).length,
@@ -196,20 +204,128 @@ export function useAgents(forceDemoMode = false): UseAgentsReturn {
         connected: true,
       });
 
+      return true;
     } catch {
-      setConnected(false);
-      setDemoMode(true);
+      return false;
     }
   }, [forceDemoMode]);
 
-  // Start polling
+  // ------------------------------------------------------------------
+  // SSE: connect to /api/gateway/events for real-time state patches
+  // ------------------------------------------------------------------
   useEffect(() => {
-    pollGateway();
-    pollTimerRef.current = setInterval(pollGateway, 5000);
+    if (forceDemoMode) return;
+
+    let cancelled = false;
+
+    async function init() {
+      // Initial fetch to populate sessions
+      const ok = await fetchSessions();
+      if (cancelled) return;
+
+      if (!ok) {
+        setConnected(false);
+        setDemoMode(true);
+        return;
+      }
+
+      // Open SSE connection for real-time state updates
+      const es = new EventSource('/api/gateway/events');
+      eventSourceRef.current = es;
+
+      es.addEventListener('state', (evt) => {
+        try {
+          const data = JSON.parse(evt.data) as {
+            sessionKey: string;
+            chatStatus: string | null;
+            agentStatus: string | null;
+            agentEventData: Record<string, unknown> | null;
+            behavior: string;
+            agentName: string | null;
+            emoji: string | null;
+            lastRunId: string | null;
+          };
+
+          const sessionId = keyToIdRef.current[data.sessionKey];
+          if (!sessionId) return; // unknown session — will appear on next metadata refresh
+
+          const behavior = (data.behavior ?? 'idle') as AgentBehavior;
+
+          // Patch the dashboard state for this specific session
+          setAgentStates(prev => {
+            const existing = prev[sessionId];
+            if (!existing) return prev;
+            return {
+              ...prev,
+              [sessionId]: {
+                ...existing,
+                behavior,
+                officeState: behaviorToOfficeState(behavior),
+                lastActivity: Date.now(),
+              },
+            };
+          });
+
+          // Detect behavior change → activity feed
+          const prevBehavior = prevBehaviorsRef.current[sessionId];
+          if (prevBehavior && prevBehavior !== behavior) {
+            const info = BEHAVIOR_INFO[behavior];
+            if (info) {
+              setAgents(currentAgents => {
+                const agent = currentAgents.find(a => a.id === sessionId);
+                if (agent) {
+                  const event: ActivityEvent = {
+                    id: `sse-${Date.now()}-${sessionId}`,
+                    agentId: sessionId,
+                    agentName: agent.name,
+                    agentEmoji: agent.emoji,
+                    type: 'state_change',
+                    message: `${info.emoji} ${info.label}`,
+                    timestamp: Date.now(),
+                  };
+                  setActivityFeed(prev => [event, ...prev].slice(0, 50));
+                }
+                return currentAgents; // no change to agents array
+              });
+            }
+          }
+          prevBehaviorsRef.current[sessionId] = behavior;
+
+        } catch {
+          // Ignore malformed events
+        }
+      });
+
+      es.addEventListener('open', () => {
+        // SSE connection established
+      });
+
+      es.onerror = () => {
+        // EventSource will auto-reconnect. If the server is gone for a while,
+        // fall back to demo mode. We'll recover on the next successful reconnect.
+        // Don't immediately set demo mode — give it a chance to reconnect.
+      };
+
+      // Slow metadata refresh every 30s (token counts, new sessions, etc.)
+      metadataTimerRef.current = setInterval(() => {
+        fetchSessions();
+      }, 30_000);
+    }
+
+    init();
+
     return () => {
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+      cancelled = true;
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      if (metadataTimerRef.current) {
+        clearInterval(metadataTimerRef.current);
+        metadataTimerRef.current = null;
+      }
     };
-  }, [pollGateway]);
+  }, [forceDemoMode, fetchSessions]);
 
   // Demo mode: random behavior changes
   useEffect(() => {
@@ -298,12 +414,12 @@ export function useAgents(forceDemoMode = false): UseAgentsReturn {
         }, ...prev].slice(0, 50));
       }
 
-      // Force immediate re-poll
-      setTimeout(() => pollGateway(), 1000);
+      // Force immediate re-fetch
+      setTimeout(() => fetchSessions(), 1000);
     } catch (err) {
       console.error('Restart failed:', err);
     }
-  }, [sessionKeys, agents, pollGateway]);
+  }, [sessionKeys, agents, fetchSessions]);
 
   // Track message counts per agent to detect new replies
   const msgCountRef = useRef<Record<string, number>>({});

@@ -13,6 +13,7 @@ import type {
   AgentConfig,
   AgentState,
 } from './types';
+import type { SessionLiveState } from './gateway-connection';
 
 // ---------------------------------------------------------------------------
 // Behavior metadata
@@ -89,6 +90,54 @@ export function behaviorToOfficeState(behavior: AgentBehavior): AgentState {
     case 'overloaded':
     case 'reviving':
       return 'waiting';
+    default:
+      return 'idle';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Live state → AgentBehavior mapping (uses real gateway events)
+// ---------------------------------------------------------------------------
+
+/**
+ * Derive an AgentBehavior from real-time gateway event state.
+ *
+ * Pure 1:1 mapping from chatStatus (ChatEvent.state) to behavior — no
+ * time-based logic, no agentStatus checks.
+ *
+ * Mapping:
+ * - chatStatus "delta"   → coding
+ * - chatStatus "final"   → idle
+ * - chatStatus "aborted" → dead
+ * - chatStatus "error"   → panicking
+ * - chatStatus null      → idle (no chat events seen)
+ *
+ * This function exists for backward compat with the pixel-art office view.
+ * It should be refactored later to let the UI interpret raw statuses directly.
+ */
+export function executionStateToBehavior(
+  live: SessionLiveState | undefined,
+  abortedLastRun: boolean | undefined,
+): AgentBehavior {
+  // If abortedLastRun is set in session metadata and we have no live state
+  // contradicting it, treat as dead
+  if (abortedLastRun && (!live || !live.chatStatus || live.chatStatus === 'aborted')) {
+    return 'dead';
+  }
+
+  if (!live || !live.chatStatus) {
+    return 'idle';
+  }
+
+  switch (live.chatStatus) {
+    case 'delta':
+      return 'coding';
+    case 'final':
+      return 'idle';
+    case 'aborted':
+      return 'dead';
+    case 'error':
+      return 'panicking';
     default:
       return 'idle';
   }

@@ -1,191 +1,19 @@
 // ============================================================================
-// /api/gateway — Proxy to OpenClaw Gateway via WebSocket
-// Returns real session data as JSON for the dashboard to poll
+// /api/gateway — Proxy to OpenClaw Gateway
+//
+// Returns real session data as JSON for the dashboard to poll.
+// Uses a persistent WebSocket connection (singleton) instead of opening a
+// new connection per request. Raw chatStatus and agentStatus are passed
+// through from gateway events alongside the derived behavior.
 // ============================================================================
 
 import { NextResponse } from 'next/server';
-import { readFileSync } from 'fs';
-import { join } from 'path';
-import WebSocket from 'ws';
-
-/** Mirrors openclaw's GatewaySessionRow (not re-exported from plugin-sdk). */
-type GatewaySessionRow = {
-  key: string;
-  kind: "direct" | "group" | "global" | "unknown";
-  label?: string;
-  displayName?: string;
-  derivedTitle?: string;
-  lastMessagePreview?: string;
-  channel?: string;
-  subject?: string;
-  groupChannel?: string;
-  space?: string;
-  updatedAt: number | null;
-  sessionId?: string;
-  systemSent?: boolean;
-  abortedLastRun?: boolean;
-  thinkingLevel?: string;
-  verboseLevel?: string;
-  reasoningLevel?: string;
-  elevatedLevel?: string;
-  sendPolicy?: "allow" | "deny";
-  inputTokens?: number;
-  outputTokens?: number;
-  totalTokens?: number;
-  responseUsage?: "on" | "off" | "tokens" | "full";
-  modelProvider?: string;
-  model?: string;
-  contextTokens?: number;
-  lastChannel?: string;
-  lastTo?: string;
-  lastAccountId?: string;
-};
-
-/** Mirrors openclaw's SessionsListResult (not re-exported from plugin-sdk). */
-type SessionsListResult = {
-  ts: number;
-  path: string;
-  count: number;
-  defaults: {
-    modelProvider: string | null;
-    model: string | null;
-    contextTokens: number | null;
-  };
-  sessions: GatewaySessionRow[];
-};
-
-// Read config to get gateway URL + token
-function readOpenClawConfig(): { url: string; token: string } | null {
-  // Check env vars first (set by plugin mode)
-  const envPort = process.env.OPENCLAW_GATEWAY_PORT;
-  const envToken = process.env.OPENCLAW_GATEWAY_TOKEN;
-  if (envPort) {
-    return {
-      url: `ws://127.0.0.1:${envPort}`,
-      token: envToken ?? '',
-    };
-  }
-
-  try {
-    const home = process.env.USERPROFILE || process.env.HOME || '';
-    const configPath = join(home, '.openclaw', 'openclaw.json');
-    const raw = readFileSync(configPath, 'utf-8');
-    const config = JSON.parse(raw);
-    const port = config?.gateway?.port ?? 18789;
-    const token = config?.gateway?.auth?.token ?? '';
-    return { url: `ws://127.0.0.1:${port}`, token };
-  } catch {
-    return null;
-  }
-}
-
-// Connect to gateway via WebSocket and send a request
-function gatewayRequest(
-  url: string,
-  token: string,
-  method: string,
-  params: Record<string, unknown> = {},
-  timeoutMs = 8000,
-): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(url);
-    const reqId = `am-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    let settled = false;
-    let connectSent = false;
-
-    const timer = setTimeout(() => {
-      if (!settled) {
-        settled = true;
-        ws.close();
-        reject(new Error('Gateway request timed out'));
-      }
-    }, timeoutMs);
-
-    ws.on('error', (err) => {
-      if (!settled) {
-        settled = true;
-        clearTimeout(timer);
-        reject(err);
-      }
-    });
-
-    ws.on('close', () => {
-      if (!settled) {
-        settled = true;
-        clearTimeout(timer);
-        reject(new Error('WebSocket closed before response'));
-      }
-    });
-
-    ws.on('message', (data) => {
-      try {
-        const msg = JSON.parse(data.toString());
-
-        // Handle connect challenge
-        if (msg.type === 'event' && msg.event === 'connect.challenge' && !connectSent) {
-          connectSent = true;
-          ws.send(JSON.stringify({
-            type: 'req',
-            id: 'connect-1',
-            method: 'connect',
-            params: {
-              minProtocol: 3,
-              maxProtocol: 3,
-              client: {
-                id: 'gateway-client',
-                version: '0.1.0',
-                platform: 'windows',
-                mode: 'backend',
-              },
-              role: 'operator',
-              scopes: ['operator.read', 'operator.admin'],
-              caps: [],
-              commands: [],
-              permissions: {},
-              auth: { token },
-              locale: 'en-US',
-              userAgent: 'agent-monitor/0.1.0',
-            },
-          }));
-          return;
-        }
-
-        // Handle connect response — now send our actual request
-        if (msg.type === 'res' && msg.id === 'connect-1') {
-          if (!msg.ok) {
-            settled = true;
-            clearTimeout(timer);
-            ws.close();
-            reject(new Error(`Gateway connect failed: ${JSON.stringify(msg.error)}`));
-            return;
-          }
-          ws.send(JSON.stringify({
-            type: 'req',
-            id: reqId,
-            method,
-            params,
-          }));
-          return;
-        }
-
-        // Handle our actual request response
-        if (msg.type === 'res' && msg.id === reqId) {
-          settled = true;
-          clearTimeout(timer);
-          ws.close();
-          if (msg.ok) {
-            resolve(msg.payload);
-          } else {
-            reject(new Error(`Gateway error: ${JSON.stringify(msg.error)}`));
-          }
-          return;
-        }
-      } catch {
-        // Ignore parse errors
-      }
-    });
-  });
-}
+import {
+  getGatewayConnection,
+  readOpenClawConfig,
+  type SessionsListResult,
+} from '@/lib/gateway-connection';
+import { executionStateToBehavior, isActiveBehavior } from '@/lib/state-mapper';
 
 export async function GET() {
   const config = readOpenClawConfig();
@@ -197,45 +25,40 @@ export async function GET() {
   }
 
   try {
-    const result = await gatewayRequest(config.url, config.token, 'sessions.list', {}) as SessionsListResult;
+    const gw = getGatewayConnection();
+
+    // Fetch session metadata via RPC (uses persistent connection if ready,
+    // falls back to ephemeral WebSocket otherwise).
+    const result = await gw.request<SessionsListResult>('sessions.list', {});
     const now = Date.now();
 
+    // Get live execution states from event subscriptions
+    const liveStates = gw.getSessionStates();
+
+    // Get known agents for display names / emoji
+    const knownAgents = gw.getAgents();
+
     const sessions = (result.sessions ?? []).map((s) => {
-      const age = s.updatedAt != null ? now - s.updatedAt : null;
       const isSubagent = s.key.includes('subagent');
 
-      // Infer behavior from timing — this is best-effort since gateway
-      // doesn't expose explicit agent state.
-      // When updatedAt is null we have no timing info, so default to idle.
-      let behavior = 'idle';
-      let isActive = false;
+      // Derive behavior from real-time event state (if available)
+      // combined with session metadata (abortedLastRun as fallback).
+      const liveState = liveStates.get(s.key);
+      const behavior = executionStateToBehavior(liveState, s.abortedLastRun);
+      const isActive = isActiveBehavior(behavior);
 
-      if (s.abortedLastRun) {
-        behavior = 'dead';
-      } else if (age == null) {
-        behavior = 'idle';
-      } else if (age < 30000) {
-        behavior = 'coding';
-        isActive = true;
-      } else if (age < 120000) {
-        behavior = 'thinking';
-        isActive = true;
-      } else if (age < 600000) {
-        behavior = 'idle';
-      } else if (age < 3600000) {
-        behavior = 'coffee';
-      } else {
-        behavior = 'sleeping';
-      }
-
-      // Parse session key for display name
+      // Resolve agent info from agents map, fall back to session key parsing
       const keyParts = s.key.split(':');
+      const agentId = (keyParts[0] === 'agent' && keyParts[1]) ? keyParts[1] : 'main';
+      const agentInfo = liveState?.agent ?? knownAgents.get(agentId);
+
       let agentName: string;
-      if (isSubagent) {
+      if (agentInfo?.identity?.name ?? agentInfo?.name) {
+        agentName = (agentInfo.identity?.name ?? agentInfo.name)!;
+      } else if (isSubagent) {
         const subId = keyParts[keyParts.length - 1] ?? '';
         agentName = `Sub-${subId.slice(0, 6)}`;
       } else {
-        const agentId = keyParts[1] ?? 'main';
         agentName = agentId.charAt(0).toUpperCase() + agentId.slice(1);
       }
 
@@ -243,10 +66,16 @@ export async function GET() {
         id: s.sessionId,
         key: s.key,
         name: agentName,
+        emoji: agentInfo?.identity?.emoji,
         model: s.model,
         totalTokens: s.totalTokens ?? 0,
         contextTokens: s.contextTokens ?? 0,
         channel: s.lastChannel ?? s.channel,
+        // Raw statuses from gateway events (recorded as-is)
+        chatStatus: liveState?.chatStatus ?? null,
+        agentStatus: liveState?.agentStatus ?? null,
+        agentEventData: liveState?.agentEventData ?? null,
+        // Derived behavior for backward compat with office view
         behavior,
         isActive,
         isSubagent,
@@ -260,7 +89,7 @@ export async function GET() {
     // (e.g. agent:main:main and agent:main), keep the one with more tokens
     const sessionMap = new Map<string, typeof sessions[0]>();
     for (const sess of sessions) {
-      // Group key: for "agent:main:main" → "agent:main", for subagents keep full key
+      // Group key: for "agent:main:main" -> "agent:main", for subagents keep full key
       const groupKey = sess.isSubagent ? sess.key : sess.key.split(':').slice(0, 2).join(':');
       const existing = sessionMap.get(groupKey);
       if (!existing || sess.totalTokens > existing.totalTokens || (sess.totalTokens === existing.totalTokens && (sess.lastActivity ?? 0) > (existing.lastActivity ?? 0))) {

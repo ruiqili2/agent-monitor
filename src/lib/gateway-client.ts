@@ -12,11 +12,15 @@ export interface GatewaySessionInfo {
   id: string;
   key: string;
   name: string;
+  emoji?: string;
   model: string;
   totalTokens: number;
   contextTokens: number;
   channel: string;
   behavior: string;
+  chatStatus?: string | null;
+  agentStatus?: string | null;
+  agentEventData?: Record<string, unknown> | null;
   isActive: boolean;
   isSubagent: boolean;
   lastActivity: number;
