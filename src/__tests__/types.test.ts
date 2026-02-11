@@ -28,7 +28,7 @@ describe('Type consistency', () => {
   it('AgentBehavior covers all expected behaviors', () => {
     // This ensures we don't accidentally remove behaviors
     const behaviors: AgentBehavior[] = [
-      'coding', 'thinking', 'researching', 'meeting', 'deploying', 'debugging',
+      'working', 'thinking', 'researching', 'meeting', 'deploying', 'debugging',
       'receiving_task', 'reporting',
       'idle', 'coffee', 'snacking', 'toilet', 'sleeping', 'napping',
       'panicking', 'dead', 'overloaded', 'reviving',
@@ -38,7 +38,7 @@ describe('Type consistency', () => {
 
   it('AgentState covers all expected states', () => {
     const states: AgentState[] = [
-      'idle', 'coding', 'thinking', 'researching', 'meeting', 'deploying',
+      'idle', 'working', 'thinking', 'researching', 'meeting', 'deploying',
       'receiving_task', 'reporting', 'resting', 'waiting',
     ];
     expect(states).toHaveLength(10);
@@ -73,8 +73,8 @@ describe('Type consistency', () => {
 
   it('AgentDashboardState has required shape', () => {
     const state: AgentDashboardState = {
-      behavior: 'coding',
-      officeState: 'coding',
+      behavior: 'working',
+      officeState: 'working',
       currentTask: null,
       taskHistory: [],
       tokenUsage: [],
@@ -84,7 +84,7 @@ describe('Type consistency', () => {
       sessionLog: [],
       uptime: 0,
     };
-    expect(state.behavior).toBe('coding');
+    expect(state.behavior).toBe('working');
   });
 
   it('ActivityEvent type union is complete', () => {

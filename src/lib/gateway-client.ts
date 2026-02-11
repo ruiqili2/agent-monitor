@@ -51,7 +51,7 @@ export interface GatewayStatus {
 /** Map behavior string → AgentBehavior */
 function toBehavior(s: string): AgentBehavior {
   const valid: AgentBehavior[] = [
-    'coding', 'thinking', 'researching', 'meeting', 'deploying', 'debugging',
+    'working', 'thinking', 'researching', 'meeting', 'deploying', 'debugging',
     'receiving_task', 'reporting', 'idle', 'coffee', 'snacking', 'toilet',
     'sleeping', 'napping', 'panicking', 'dead', 'overloaded', 'reviving',
   ];
@@ -61,9 +61,9 @@ function toBehavior(s: string): AgentBehavior {
 /** Map AgentBehavior → AgentState (for office engine) */
 export function behaviorToOfficeState(behavior: AgentBehavior): AgentState {
   switch (behavior) {
-    case 'coding':
+    case 'working':
     case 'debugging':
-      return 'coding';
+      return 'working';
     case 'thinking':
       return 'thinking';
     case 'researching':

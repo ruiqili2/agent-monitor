@@ -12,8 +12,8 @@ import type { AgentBehavior } from '@/lib/types';
 
 describe('gateway-client behaviorToOfficeState', () => {
   const cases: [AgentBehavior, string][] = [
-    ['coding', 'coding'],
-    ['debugging', 'coding'],
+    ['working', 'working'],
+    ['debugging', 'working'],
     ['thinking', 'thinking'],
     ['researching', 'researching'],
     ['meeting', 'meeting'],
@@ -63,7 +63,7 @@ describe('pollGateway', () => {
           totalTokens: 1000,
           contextTokens: 500,
           channel: 'webchat',
-          behavior: 'coding',
+          behavior: 'working',
           isActive: true,
           isSubagent: false,
           lastActivity: Date.now(),
@@ -76,8 +76,8 @@ describe('pollGateway', () => {
     const status = await pollGateway({ url: 'http://localhost', token: '' });
     expect(status.online).toBe(true);
     expect(status.sessions).toHaveLength(1);
-    expect(status.agentStates['test-1']).toBe('coding');
-    expect(status.agentBehaviors['test-1']).toBe('coding');
+    expect(status.agentStates['test-1']).toBe('working');
+    expect(status.agentBehaviors['test-1']).toBe('working');
   });
 
   it('returns offline when fetch throws', async () => {
@@ -149,7 +149,7 @@ describe('pollGateway', () => {
 
     const status = await pollGateway({ url: 'http://localhost', token: '' });
     expect(status.sessions).toHaveLength(3);
-    expect(status.agentStates['s1']).toBe('coding');
+    expect(status.agentStates['s1']).toBe('working');
     expect(status.agentStates['s2']).toBe('resting');
     expect(status.agentStates['s3']).toBe('waiting');
   });

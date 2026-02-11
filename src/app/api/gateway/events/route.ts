@@ -8,7 +8,7 @@
 //
 // Event format (one per state change):
 //   event: state
-//   data: {"sessionKey":"agent:main:main","chatStatus":"delta",...,"behavior":"coding"}
+//   data: {"sessionKey":"agent:main:main","chatStatus":"delta",...,"behavior":"working"}
 //
 // A heartbeat comment is sent every 30s to keep the connection alive through
 // proxies/load balancers.

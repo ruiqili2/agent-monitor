@@ -50,7 +50,7 @@ export interface UseAgentsReturn {
 }
 
 const DEMO_BEHAVIORS: AgentBehavior[] = [
-  'coding', 'thinking', 'researching', 'meeting', 'deploying',
+  'working', 'thinking', 'researching', 'meeting', 'deploying',
   'debugging', 'idle', 'coffee', 'sleeping', 'receiving_task',
   'reporting', 'snacking',
 ];

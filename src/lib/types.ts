@@ -9,7 +9,7 @@
 /** All possible agent behaviors/states */
 export type AgentBehavior =
   // Work
-  | 'coding'
+  | 'working'
   | 'thinking'
   | 'researching'
   | 'meeting'
@@ -34,7 +34,7 @@ export type AgentBehavior =
 /** Agent states compatible with the office engine (mapped from AgentBehavior) */
 export type AgentState =
   | 'idle'
-  | 'coding'
+  | 'working'
   | 'thinking'
   | 'researching'
   | 'meeting'

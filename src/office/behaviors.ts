@@ -19,10 +19,10 @@ export interface BehaviorMapping {
 
 export const BEHAVIOR_MAP: Record<AgentBehavior, BehaviorMapping> = {
   // Work
-  coding: {
+  working: {
     zone: '_own_desk',
     anim: 'sit_typing',
-    bubble: '💻 Coding...',
+    bubble: '💻 Working...',
     particle: 'code',
     priority: 3,
   },
@@ -79,8 +79,10 @@ export const BEHAVIOR_MAP: Record<AgentBehavior, BehaviorMapping> = {
 
   // Life
   idle: {
-    zone: '_own_desk',
-    anim: 'stand',
+    zone: 'break_room',
+    anim: 'drink_coffee',
+    bubble: '☕ Coffee time',
+    particle: 'coffee_steam',
     priority: 0,
   },
   coffee: {

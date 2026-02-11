@@ -23,7 +23,7 @@ import type { AgentBehavior, AgentConfig } from '@/lib/types';
 
 describe('BEHAVIOR_INFO', () => {
   const ALL_BEHAVIORS: AgentBehavior[] = [
-    'coding', 'thinking', 'researching', 'meeting', 'deploying', 'debugging',
+    'working', 'thinking', 'researching', 'meeting', 'deploying', 'debugging',
     'receiving_task', 'reporting',
     'idle', 'coffee', 'snacking', 'toilet', 'sleeping', 'napping',
     'panicking', 'dead', 'overloaded', 'reviving',
@@ -52,7 +52,7 @@ describe('BEHAVIOR_INFO', () => {
 
 describe('isWorkingBehavior', () => {
   it('returns true for work behaviors', () => {
-    expect(isWorkingBehavior('coding')).toBe(true);
+    expect(isWorkingBehavior('working')).toBe(true);
     expect(isWorkingBehavior('thinking')).toBe(true);
     expect(isWorkingBehavior('debugging')).toBe(true);
     expect(isWorkingBehavior('deploying')).toBe(true);
@@ -70,7 +70,7 @@ describe('isWorkingBehavior', () => {
 
 describe('isActiveBehavior', () => {
   it('returns true for work + interaction behaviors', () => {
-    expect(isActiveBehavior('coding')).toBe(true);
+    expect(isActiveBehavior('working')).toBe(true);
     expect(isActiveBehavior('receiving_task')).toBe(true);
     expect(isActiveBehavior('reporting')).toBe(true);
   });
@@ -87,9 +87,9 @@ describe('isActiveBehavior', () => {
 // ---------------------------------------------------------------------------
 
 describe('behaviorToOfficeState', () => {
-  it('maps coding/debugging → coding', () => {
-    expect(behaviorToOfficeState('coding')).toBe('coding');
-    expect(behaviorToOfficeState('debugging')).toBe('coding');
+  it('maps working/debugging → working', () => {
+    expect(behaviorToOfficeState('working')).toBe('working');
+    expect(behaviorToOfficeState('debugging')).toBe('working');
   });
 
   it('maps thinking → thinking', () => {

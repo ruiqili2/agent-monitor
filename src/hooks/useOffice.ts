@@ -167,7 +167,7 @@ export function useOffice(
           }
         }
 
-        updated.currentState = behavior === 'coding' || behavior === 'debugging' ? 'coding' :
+        updated.currentState = behavior === 'working' || behavior === 'debugging' ? 'working' :
           behavior === 'thinking' ? 'thinking' :
           behavior === 'researching' ? 'researching' :
           behavior === 'meeting' ? 'meeting' :

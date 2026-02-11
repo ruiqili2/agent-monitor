@@ -16,7 +16,7 @@ interface OfficeControlsProps {
 }
 
 const QUICK_BEHAVIORS: AgentBehavior[] = [
-  'coding', 'thinking', 'researching', 'meeting', 'deploying',
+  'working', 'thinking', 'researching', 'meeting', 'deploying',
   'debugging', 'idle', 'coffee', 'sleeping', 'toilet',
   'panicking', 'dead', 'overloaded', 'reviving',
 ];

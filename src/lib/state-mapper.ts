@@ -28,7 +28,7 @@ export interface BehaviorInfo {
 }
 
 export const BEHAVIOR_INFO: Record<AgentBehavior, BehaviorInfo> = {
-  coding:         { label: 'Coding',         emoji: '💻', category: 'work',        color: '#4CAF50', neonColor: '#4FC3F7' },
+  working:        { label: 'Working',        emoji: '💻', category: 'work',        color: '#4CAF50', neonColor: '#4FC3F7' },
   thinking:       { label: 'Thinking',       emoji: '🤔', category: 'work',        color: '#FF9800', neonColor: '#FFCA28' },
   researching:    { label: 'Researching',    emoji: '📚', category: 'work',        color: '#2196F3', neonColor: '#42A5F5' },
   meeting:        { label: 'Meeting',        emoji: '🤝', category: 'work',        color: '#9C27B0', neonColor: '#AB47BC' },
@@ -62,9 +62,9 @@ export function isActiveBehavior(behavior: AgentBehavior): boolean {
 /** Map behavior → simplified office state */
 export function behaviorToOfficeState(behavior: AgentBehavior): AgentState {
   switch (behavior) {
-    case 'coding':
+    case 'working':
     case 'debugging':
-      return 'coding';
+      return 'working';
     case 'thinking':
       return 'thinking';
     case 'researching':
@@ -106,7 +106,7 @@ export function behaviorToOfficeState(behavior: AgentBehavior): AgentState {
  * time-based logic, no agentStatus checks.
  *
  * Mapping:
- * - chatStatus "delta"   → coding
+ * - chatStatus "delta"   → working
  * - chatStatus "final"   → idle
  * - chatStatus "aborted" → dead
  * - chatStatus "error"   → panicking
@@ -131,7 +131,7 @@ export function executionStateToBehavior(
 
   switch (live.chatStatus) {
     case 'delta':
-      return 'coding';
+      return 'working';
     case 'final':
       return 'idle';
     case 'aborted':
@@ -148,7 +148,7 @@ export function executionStateToBehavior(
 // ---------------------------------------------------------------------------
 
 const DEMO_BEHAVIORS: AgentBehavior[] = [
-  'coding', 'thinking', 'researching', 'meeting', 'deploying',
+  'working', 'thinking', 'researching', 'meeting', 'deploying',
   'debugging', 'idle', 'coffee', 'sleeping', 'receiving_task', 'reporting',
 ];
 
@@ -267,7 +267,7 @@ export function generateDemoEvent(agents: AgentConfig[]): ActivityEvent {
   const type = types[Math.floor(Math.random() * types.length)];
 
   const messages: Record<ActivityEvent['type'], string[]> = {
-    state_change: ['Started coding', 'Now thinking...', 'Taking a coffee break', 'Deploying to production', 'Back to idle', 'Entering meeting room'],
+    state_change: ['Started working', 'Now thinking...', 'Taking a coffee break', 'Deploying to production', 'Back to idle', 'Entering meeting room'],
     task_start: ['New task: ' + DEMO_TASKS[Math.floor(Math.random() * DEMO_TASKS.length)]],
     task_complete: ['Completed: ' + DEMO_TASKS[Math.floor(Math.random() * DEMO_TASKS.length)]],
     task_fail: ['Failed: Connection timeout', 'Failed: Rate limit exceeded'],
