@@ -8,12 +8,27 @@
 // ============================================================================
 
 import { NextResponse } from 'next/server';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import {
   getGatewayConnection,
   readOpenClawConfig,
   type SessionsListResult,
 } from '@/lib/gateway-connection';
 import { executionStateToBehavior, isActiveBehavior } from '@/lib/state-mapper';
+
+/** Read bot name from IDENTITY.md **Name:** field */
+function readBotName(): string | null {
+  try {
+    const workspace = process.env.OPENCLAW_WORKSPACE
+      ?? join(process.env.USERPROFILE ?? process.env.HOME ?? '', 'clawd');
+    const content = readFileSync(join(workspace, 'IDENTITY.md'), 'utf-8');
+    const match = content.match(/\*\*Name:\*\*\s*(.+)/);
+    return match?.[1]?.trim() ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export async function GET() {
   const config = readOpenClawConfig();
@@ -59,7 +74,7 @@ export async function GET() {
         const subId = keyParts[keyParts.length - 1] ?? '';
         agentName = `Sub-${subId.slice(0, 6)}`;
       } else {
-        agentName = agentId.charAt(0).toUpperCase() + agentId.slice(1);
+        agentName = readBotName() ?? agentId.charAt(0).toUpperCase() + agentId.slice(1);
       }
 
       return {
