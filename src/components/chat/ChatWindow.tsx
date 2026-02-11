@@ -126,13 +126,15 @@ export default function ChatWindow({
               }`}
             >
               {msg.content}
-              <div
-                className={`text-[10px] mt-1 ${
-                  msg.role === "user" ? "text-white/60" : "text-[var(--text-secondary)]"
-                }`}
-              >
-                {new Date(msg.timestamp).toLocaleTimeString()}
-              </div>
+              {!msg.id.startsWith("history-") && (
+                <div
+                  className={`text-[10px] mt-1 ${
+                    msg.role === "user" ? "text-white/60" : "text-[var(--text-secondary)]"
+                  }`}
+                >
+                  {new Date(msg.timestamp).toLocaleTimeString()}
+                </div>
+              )}
             </div>
           </div>
         ))}
