@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAgents } from "@/hooks/useAgents";
 import { useOffice } from "@/hooks/useOffice";
 import OfficeCanvasInner from "@/components/office/OfficeCanvas";

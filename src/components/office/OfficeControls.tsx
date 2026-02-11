@@ -23,7 +23,7 @@ const QUICK_BEHAVIORS: AgentBehavior[] = [
 
 export default function OfficeControls({
   agents,
-  agentStates,
+  agentStates: _agentStates,
   demoMode,
   onSetBehavior,
 }: OfficeControlsProps) {

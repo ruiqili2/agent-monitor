@@ -7,9 +7,8 @@ import SystemStats from "@/components/dashboard/SystemStats";
 import AgentGrid from "@/components/dashboard/AgentGrid";
 import ActivityFeed from "@/components/dashboard/ActivityFeed";
 import MiniOffice from "@/components/office/MiniOffice";
-import SettingsPanel from "@/components/settings/SettingsPanel";
 import ChatWindow from "@/components/chat/ChatWindow";
-import type { DashboardConfig, ThemeName } from "@/lib/types";
+import type { ThemeName } from "@/lib/types";
 import { loadConfig, DEFAULT_OWNER } from "@/lib/config";
 
 export default function DashboardPage() {
@@ -26,7 +25,6 @@ export default function DashboardPage() {
     connected,
     chatMessages,
     sendChat,
-    setBehavior,
     restartSession,
     loadChatHistory,
   } = useAgents();

@@ -16,7 +16,7 @@ interface MiniOfficeProps {
   theme: ThemeName;
 }
 
-export default function MiniOffice({ agents, agentStates, ownerConfig, theme }: MiniOfficeProps) {
+export default function MiniOffice({ agents, agentStates, ownerConfig, theme: _theme }: MiniOfficeProps) {
   const { officeState, tick } = useOffice(agents, agentStates);
 
   return (

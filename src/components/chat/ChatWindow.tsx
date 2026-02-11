@@ -36,7 +36,10 @@ export default function ChatWindow({
   const userSentRef = useRef(false);
   const prevMessageCountRef = useRef(0);
   const onOpenRef = useRef(onOpen);
-  onOpenRef.current = onOpen;
+
+  useEffect(() => {
+    onOpenRef.current = onOpen;
+  }, [onOpen]);
 
   // Fire onOpen only once on mount (not on every re-render)
   useEffect(() => {

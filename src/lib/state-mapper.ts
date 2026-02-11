@@ -227,7 +227,7 @@ export function generateDemoAgentState(agentId: string): AgentDashboardState {
   };
 }
 
-function generateDemoLogs(agentId: string): string[] {
+function generateDemoLogs(_agentId: string): string[] {
   const now = new Date();
   return Array.from({ length: 20 }, (_, i) => {
     const time = new Date(now.getTime() - i * 30000);

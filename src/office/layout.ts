@@ -3,7 +3,7 @@
 // ============================================================================
 
 import type { FurnitureItem, Zone, ZoneId, TileType } from '@/lib/types';
-import { ZONES_TEMPLATE, buildZoneMap } from './zones';
+import { buildZoneMap } from './zones';
 
 // ---------------------------------------------------------------------------
 // Map Dimensions

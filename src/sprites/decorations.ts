@@ -2,7 +2,7 @@
 // Decoration Sprites — Walls, backgrounds, zone labels, night overlay
 // ============================================================================
 
-import { gridToScreen, TILE_W, TILE_H, MAP_OFFSET_X, MAP_OFFSET_Y } from '@/engine/isometric';
+import { gridToScreen, TILE_W, TILE_H } from '@/engine/isometric';
 import { MAP_COLS, MAP_ROWS } from '@/office/layout';
 
 // ---------------------------------------------------------------------------

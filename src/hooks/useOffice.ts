@@ -11,10 +11,8 @@ import type {
   AgentRuntime,
   AgentBehavior,
   AgentConfig,
-  GridPos,
   CharacterAnim,
   ZoneId,
-  Particle,
 } from '@/lib/types';
 import type { AgentDashboardState } from '@/lib/types';
 import { findPath, type WalkGrid } from '@/engine/pathfinding';
@@ -75,7 +73,6 @@ export function useOffice(
   // Sync agent runtimes when agents config changes
   useEffect(() => {
     setOfficeState(prev => {
-      const existingIds = new Set(prev.agents.map(a => a.id));
       const newRuntimes = agents.map((a, i) => {
         const existing = prev.agents.find(r => r.id === a.id);
         if (existing) return existing;
