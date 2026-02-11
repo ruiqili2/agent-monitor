@@ -17,6 +17,7 @@ interface ChatWindowProps {
   messages: ChatMessage[];
   onSend: (agentId: string, message: string) => void;
   onClose: () => void;
+  onOpen?: () => void;
 }
 
 export default function ChatWindow({
@@ -27,17 +28,53 @@ export default function ChatWindow({
   messages,
   onSend,
   onClose,
+  onOpen,
 }: ChatWindowProps) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const userSentRef = useRef(false);
+  const prevMessageCountRef = useRef(0);
+  const onOpenRef = useRef(onOpen);
+  onOpenRef.current = onOpen;
+
+  // Fire onOpen only once on mount (not on every re-render)
+  useEffect(() => {
+    onOpenRef.current?.();
+  }, []);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const prevCount = prevMessageCountRef.current;
+    prevMessageCountRef.current = messages.length;
+
+    // History just loaded (went from 0 to N) — scroll to bottom instantly
+    if (prevCount === 0 && messages.length > 0) {
+      bottomRef.current?.scrollIntoView({ behavior: "instant" });
+      return;
+    }
+
+    // Always scroll if user just sent a message
+    if (userSentRef.current) {
+      userSentRef.current = false;
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+
+    // Otherwise, only auto-scroll if already near the bottom
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+    if (isNearBottom) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
 
   const handleSend = () => {
     const text = input.trim();
     if (!text) return;
+    userSentRef.current = true;
     onSend(agentId, text);
     setInput("");
   };
@@ -69,7 +106,7 @@ export default function ChatWindow({
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.length === 0 && (
           <div className="text-center text-[var(--text-secondary)] text-sm mt-8">
             <span className="text-3xl block mb-2">{agentEmoji}</span>

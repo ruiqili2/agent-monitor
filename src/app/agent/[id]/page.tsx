@@ -14,7 +14,7 @@ export default function AgentPage() {
   const agentId = params.id as string;
   const [showChat, setShowChat] = useState(false);
 
-  const { agents, agentStates, chatMessages, sendChat } = useAgents();
+  const { agents, agentStates, chatMessages, sendChat, loadChatHistory } = useAgents();
 
   const agent = agents.find((a) => a.id === agentId);
   const state = agentStates[agentId];
@@ -70,6 +70,7 @@ export default function AgentPage() {
           messages={chatMessages[agent.id] ?? []}
           onSend={sendChat}
           onClose={() => setShowChat(false)}
+          onOpen={() => loadChatHistory(agent.id)}
         />
       )}
     </div>

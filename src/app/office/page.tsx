@@ -20,6 +20,7 @@ export default function OfficePage() {
     chatMessages,
     sendChat,
     setBehavior,
+    loadChatHistory,
   } = useAgents();
 
   const { officeState, tick } = useOffice(agents, agentStates);
@@ -63,6 +64,7 @@ export default function OfficePage() {
           messages={chatMessages[openAgent.id] ?? []}
           onSend={sendChat}
           onClose={() => setChatAgent(null)}
+          onOpen={() => loadChatHistory(openAgent.id)}
         />
       )}
     </div>

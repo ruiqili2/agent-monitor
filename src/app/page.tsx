@@ -28,6 +28,7 @@ export default function DashboardPage() {
     sendChat,
     setBehavior,
     restartSession,
+    loadChatHistory,
   } = useAgents();
 
   const openAgent = chatAgent ? agents.find((a) => a.id === chatAgent) : null;
@@ -137,6 +138,7 @@ export default function DashboardPage() {
           messages={chatMessages[openAgent.id] ?? []}
           onSend={sendChat}
           onClose={() => setChatAgent(null)}
+          onOpen={() => loadChatHistory(openAgent.id)}
         />
       )}
     </div>
