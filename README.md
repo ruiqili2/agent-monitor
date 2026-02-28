@@ -1,273 +1,242 @@
-# 🏢 AgentMonitor
+# AgentMonitor for OpenClaw
 
-> Real-time AI agent visualization & monitoring dashboard for [OpenClaw](https://github.com/nicepkg/openclaw)
+Real-time AI agent visualization and control dashboard for [OpenClaw](https://github.com/openclaw/openclaw).
 
-Watch your AI agents work in a **pixel-art office**. Monitor status, chat with them, and customize everything — all from your browser.
+Watch your agents work in a pixel-art office, monitor live sessions, send direct and global boss chat, and run autowork from the browser.
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-91%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-92%20passed-brightgreen)
 
-<!-- TODO: Add screenshot/GIF here -->
-<!-- ![AgentMonitor Screenshot](docs/screenshot.png) -->
-
-<img width="2538" height="1262" alt="image" src="https://github.com/user-attachments/assets/908f2447-ec91-4d17-93b1-3d327cafe478" />
+<img width="2538" height="1262" alt="AgentMonitor Screenshot" src="https://github.com/user-attachments/assets/908f2447-ec91-4d17-93b1-3d327cafe478" />
 
 ---
 
-## ⚡ Quick Start
+## What Is Included
 
-### Option 1: OpenClaw Plugin (recommended)
+- Live dashboard with agent cards, activity feed, system stats, and a mini office view
+- Global boss chat that broadcasts to all primary agents using the configured boss identity
+- Per-agent direct chat with history loading
+- Server-side autowork ticker with per-session policies and a run-now action
+- Local OpenClaw auto-connect with reconnect retries
+- Persistent backend WebSocket connection to the OpenClaw gateway
+- Expanded settings panel for Gateway, Boss, Agents, and Theme
+- Optional demo mode for UI-only previewing
 
-If you have [OpenClaw](https://github.com/nicepkg/openclaw) installed:
+---
+
+## Quick Start
+
+### Standalone dashboard
+
+```bash
+git clone https://github.com/Franzferdinan51/agent-monitor-openclaw-dashboard.git
+cd agent-monitor-openclaw-dashboard
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000`.
+
+If OpenClaw is already running locally, the dashboard will:
+
+- read `~/.openclaw/openclaw.json`
+- auto-discover the local gateway port
+- retry until the gateway is available
+- authenticate with a persisted local device identity so current OpenClaw builds grant real operator scopes
+
+Demo mode is off by default now. Enable it only from Settings if you want a simulated UI.
+
+### Startup scripts
+
+Windows:
+
+```bat
+install.bat
+startup.bat
+```
+
+Linux/macOS:
+
+```bash
+chmod +x install.sh startup.sh
+./install.sh
+./startup.sh
+```
+
+`startup` will install and build when needed, then launch the app.
+
+### OpenClaw plugin mode
+
+If you are using the packaged plugin path:
 
 ```bash
 openclaw plugins install @openclaw/agent-monitor
 openclaw gateway restart
 ```
 
-Dashboard is now live at **http://localhost:3200** — auto-connects to your gateway, zero config.
-
-**Configure (optional):**
-```json5
-{
-  "plugins": {
-    "entries": {
-      "agent-monitor": {
-        "enabled": true,
-        "config": {
-          "port": 3200,       // default
-          "host": "0.0.0.0"   // default, use "127.0.0.1" to restrict to localhost
-        }
-      }
-    }
-  }
-}
-```
-
-**CLI:**
-```bash
-openclaw monitor          # Show dashboard URL
-openclaw monitor --open   # Open in browser
-```
-
-### Option 2: Standalone (no OpenClaw required)
-
-```bash
-git clone https://github.com/ruiqili2/agent-monitor.git
-cd agent-monitor
-npm install
-npm run dev
-```
-
-Open **http://localhost:3000** — starts in **Demo Mode** with 3 animated agents.
-
-### Connect to OpenClaw Gateway
-
-To monitor your real agents (standalone mode), either:
-
-**Option A — URL params (fastest):**
-```
-http://localhost:3000?gateway=http://localhost:18789&token=YOUR_TOKEN
-```
-
-**Option B — Settings panel:**
-1. Click ⚙️ Settings
-2. Enter your Gateway URL (default: `http://localhost:18789`)
-3. Enter your auth token
-4. Toggle off Demo Mode
-
-> **Where's my token?** Check `~/.openclaw/openclaw.json` → `gateway.auth.token`
+The monitor plugin serves the dashboard separately (default plugin port: `3200`).
 
 ---
 
-## ✨ Features
+## Local OpenClaw Connection
 
-### 🖥️ Dashboard
-- **Agent Cards** — Real-time status, token usage, current task per agent
-- **System Stats** — Total/active agents, token usage, uptime
-- **Activity Feed** — Live event stream across all agents
-- **Mini Office** — Pixel office preview right on the dashboard
+The standalone dashboard is designed to auto-connect to a local OpenClaw instance.
 
-### 🏢 Office View
-- **Isometric Pixel Art** — Full office with furniture, zones, and decorations
-- **18 Agent Behaviors** — Agents walk between zones based on their real status:
+It uses:
 
-  | Category | Behaviors | Office Zone |
-  |----------|-----------|-------------|
-  | **Work** | coding, debugging | Desk (typing animation) |
-  | | thinking | Whiteboard |
-  | | researching | Desk (reading) |
-  | | meeting | Meeting room |
-  | | deploying | Desk (focused) |
-  | **Interaction** | receiving_task | Walk to owner |
-  | | reporting | Walk to owner |
-  | **Life** | idle | Wander around |
-  | | coffee, snacking | Break room |
-  | | sleeping, napping | Lounge (zzZ) |
-  | | toilet | Bathroom |
-  | **Anomaly** | panicking | Running around! |
-  | | dead | Collapsed 💀 |
-  | | overloaded | Smoking head 🤯 |
-  | | reviving | Sparkle effect ✨ |
+- local config discovery from `~/.openclaw/openclaw.json`
+- a persistent backend gateway socket
+- device-aware handshake signing for modern OpenClaw gateway auth
+- automatic reconnect if the gateway restarts
 
-- **Day/Night Cycle** — Ambient lighting changes over time
-- **Particle Effects** — Visual feedback for different states
+If you still want manual overrides, use either:
 
-### 💬 Chat
-- Click any agent to open a slide-in chat panel
-- Send messages and see agent replies in real-time
-- Uses `chat.send` + `chat.history` via OpenClaw Gateway WebSocket
-- Demo mode simulates responses
+- URL params: `http://localhost:3000?gateway=http://localhost:18789&token=YOUR_TOKEN`
+- Settings -> Gateway tab
 
-### 🎨 4 Themes
-| Theme | Vibe |
-|-------|------|
-| **Midnight** (default) | Deep blue, professional |
-| **Void** | Pure dark, minimal |
-| **Warm** | Cozy amber tones |
-| **Neon** | Cyberpunk, high contrast |
-
-### 🧑‍💼 Customization
-- **Owner name & avatar** — Configurable (not hardcoded!)
-- **Agent avatars** — glasses, hoodie, suit, casual, robot, cat, dog
-- **Agent colors** — 6 presets per agent
-- **Import/Export** — Save and share your config as JSON
+Saved gateway URL and token are treated as overrides and diagnostics helpers. The dashboard still tries local auto-discovery first.
 
 ---
 
-## 🏗️ Architecture
+## Main Features
 
-```
-├── plugin.ts               # OpenClaw plugin entry point
-├── openclaw.plugin.json    # Plugin manifest
-├── src/
-│   ├── app/                    # Next.js App Router pages
-│   ├── page.tsx            #   Dashboard (/)
-│   ├── office/page.tsx     #   Full office view (/office)
-│   └── agent/[id]/page.tsx #   Agent detail (/agent/:id)
-├── components/
-│   ├── dashboard/          # AgentCard, AgentGrid, ActivityFeed, SystemStats, Navbar
-│   ├── office/             # OfficeCanvas, MiniOffice, OfficeControls
-│   ├── agent/              # AgentDetail, TokenUsage, SessionLog, TaskList
-│   ├── chat/               # ChatWindow
-│   ├── settings/           # SettingsPanel (3 tabs: Gateway, Agents, Theme)
-│   └── shared/             # StatusBadge, ConnectionStatus
-├── engine/                 # Canvas rendering engine
-│   ├── isometric.ts        #   Isometric coordinate system
-│   ├── pathfinding.ts      #   A* pathfinding on tile grid
-│   └── animation.ts        #   Sprite animation system
-├── sprites/                # Pixel art renderers
-│   ├── characters.ts       #   Agent & owner sprites
-│   ├── furniture.ts        #   Office furniture
-│   ├── decorations.ts      #   Plants, posters, etc.
-│   └── effects.ts          #   Particles, bubbles, sparkles
-├── office/                 # Office layout & logic
-│   ├── layout.ts           #   Tile map & zone definitions
-│   └── zones.ts            #   Behavior → zone mapping
-├── hooks/
-│   ├── useAgents.ts        #   Agent state management + chat
-│   ├── useGateway.ts       #   Gateway connection polling
-│   └── useOffice.ts        #   Office animation state machine
-├── lib/
-│   ├── types.ts            #   TypeScript type definitions
-│   ├── config.ts           #   Config loading/saving (localStorage + URL)
-│   ├── gateway-client.ts   #   Gateway HTTP polling client
-│   └── state-mapper.ts     #   Behavior → office state mapping
-└── __tests__/              # Vitest test suite (91 tests)
+### Dashboard
+
+- Agent cards with live status, token usage, tool/activity summary, and restart controls
+- System stats for total agents, active agents, tokens, threads, and broadcasts
+- Activity feed for state changes, tool calls, and message events
+- Mini office preview rendered on the main page
+
+### Global boss chat
+
+- Broadcast a single message to all main agents
+- Sender name and emoji come from the configured boss identity
+- Broadcasts are mirrored into the global timeline and agent threads
+
+### Direct chat
+
+- Open a chat drawer for any agent
+- Send messages with `chat.send`
+- Pull recent history with `chat.history`
+- Poll for replies after send
+
+### Autowork
+
+- Global default directive
+- Per-session autowork enable/disable
+- Per-session interval and directive override
+- Manual "run now" execution
+- Server-side ticker so autowork continues while the dashboard backend is up
+
+### Office view
+
+- Pixel-art isometric office rendering
+- Agent behaviors mapped into office states and movement
+- Animated characters, particles, and room transitions
+
+### Settings
+
+The settings modal now has four sections:
+
+- Gateway
+- Boss
+- Agents
+- Theme
+
+You can manage:
+
+- demo mode
+- saved gateway overrides
+- boss name, emoji, and avatar
+- saved agent display presets
+- theme selection
+- reset of stored local preferences
+
+---
+
+## Architecture
+
+```text
+plugin.ts                  OpenClaw plugin entry point
+openclaw.plugin.json       Plugin manifest
+src/
+  app/
+    page.tsx               Main dashboard
+    office/page.tsx        Office page
+    agent/[id]/page.tsx    Agent detail page
+    api/gateway/           Gateway-backed API routes
+  components/
+    dashboard/             Dashboard widgets
+    chat/                  Direct and global chat UI
+    office/                Office canvas UI
+    settings/              Settings panel
+  hooks/
+    useAgents.ts           Dashboard state, reconnect loop, chat flow
+  lib/
+    gateway-connection.ts  Persistent gateway connection and device auth
+    autowork.ts            Autowork policy store and ticker
+    config.ts              Local dashboard config persistence
+    state-mapper.ts        Session state to UI state mapping
+    types.ts               Shared types
 ```
 
 ### How it works
 
-1. **Gateway Polling** — `useAgents` polls `/api/gateway` every 5s
-2. **API Route** — Next.js server route connects to OpenClaw Gateway via WebSocket
-3. **Behavior Inference** — Maps session `updatedAt` timestamps to agent behaviors
-4. **Canvas Rendering** — HTML5 Canvas draws the isometric office at 60fps
-5. **A\* Pathfinding** — Agents walk between zones when behavior changes
+1. `useAgents` polls `/api/gateway` every 5 seconds until the local gateway answers.
+2. The Next.js backend maintains a shared persistent WebSocket connection to OpenClaw.
+3. The connection authenticates with local device identity and signed `connect` payloads.
+4. `/api/gateway/events` streams live gateway-derived state over SSE.
+5. The UI maps live gateway state into office behavior, stats, feeds, and chat views.
 
-### Gateway Protocol
+### Gateway methods used
 
-The app communicates with OpenClaw Gateway using the [WebSocket protocol v3](https://docs.openclaw.ai):
-
-- `sessions.list` — Discover active sessions
-- `chat.send` — Send messages to agents
-- `chat.history` — Fetch conversation history
-- Each API call opens a short-lived WebSocket connection (connect challenge → handshake → request → close)
+- `sessions.list`
+- `agents.list`
+- `chat.send`
+- `chat.history`
+- `sessions.reset`
+- `sessions.compact`
+- `agent` and `chat` event streams for live state updates
 
 ---
 
-## 🧪 Testing
+## Development
+
+### Scripts
 
 ```bash
-npm test              # Run all tests (91 tests)
-npm run test:watch    # Watch mode
-npm run test:coverage # With coverage report
+npm run dev
+npm run build
+npm run start
+npm test
 ```
 
-Test coverage includes:
-- **state-mapper** (30 tests) — Behavior classification, office state mapping, demo data, formatters
-- **gateway-client** (28 tests) — Behavior mapping, polling, error handling, multi-session
-- **config** (20 tests) — Mutation immutability, import/export, localStorage, URL params
-- **types** (11 tests) — Compile-time type consistency checks
-- **api-routes** (2 tests) — Structural smoke tests
+### Test status
+
+- 92 tests passing
+- Vitest + Testing Library
+
+Coverage areas include:
+
+- config loading and mutation helpers
+- gateway client helpers
+- API route smoke tests
+- type consistency
+- state mapping logic
 
 ---
 
-## 🛠️ Tech Stack
+## Notes
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | [Next.js 16](https://nextjs.org) (App Router) |
-| Language | TypeScript 5 |
-| Rendering | HTML5 Canvas (pixel art, no WebGL) |
-| Styling | [Tailwind CSS 4](https://tailwindcss.com) + CSS custom properties |
-| WebSocket | [ws](https://github.com/websockets/ws) (server-side gateway connection) |
-| Testing | [Vitest](https://vitest.dev) + Testing Library |
-| Agent Platform | [OpenClaw](https://github.com/nicepkg/openclaw) |
+- The dashboard no longer defaults to demo mode.
+- Local OpenClaw discovery is the preferred path.
+- The boss user is the sender in global chat.
+- Autowork is integrated into the live dashboard flow.
 
 ---
 
-## 🗺️ Roadmap
+## License
 
-- [x] Dashboard with agent cards, stats, activity feed
-- [x] Pixel-art isometric office with 18 behaviors
-- [x] Real-time Gateway connection (WebSocket via API route)
-- [x] Chat with agents (send + receive replies)
-- [x] 4 themes + full customization
-- [x] Test suite (91 tests)
-- [x] **OpenClaw Plugin** — `openclaw plugins install @openclaw/agent-monitor`
-- [ ] Persistent WebSocket connection (replace per-request connections)
-- [ ] Real-time event subscription (replace HTTP polling)
-- [ ] Cloudflare Tunnel support for remote access
-
----
-
-## 🤝 Contributing
-
-Contributions welcome! Here's how to get started:
-
-1. **Fork** the repo
-2. **Create a branch** — `git checkout -b feat/my-feature`
-3. **Make changes** — Follow existing code style (TypeScript strict mode)
-4. **Run tests** — `npm test` (all 91 must pass)
-5. **Build check** — `npm run build` (must succeed)
-6. **Submit a PR** — Describe what you changed and why
-
-### Development tips
-- `npm run dev` starts the dev server with hot reload
-- `npm run test:watch` for TDD workflow
-- The app auto-detects Gateway connection; no setup needed for UI work (demo mode)
-- CSS variables in `src/app/globals.css` control all theme colors
-
----
-
-## 📄 License
-
-[MIT](LICENSE) — Use it, modify it, ship it.
-
----
-
-<p align="center">
-  Built with ⚡ by <a href="https://github.com/ruiqili2">ruiqili2</a> and an army of AI agents
-</p>
+[MIT](LICENSE)
