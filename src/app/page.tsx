@@ -13,8 +13,13 @@ import MiniOffice from "@/components/office/MiniOffice";
 import TokenTracker from "@/components/TokenTracker";
 import PerformanceMetrics from "@/components/PerformanceMetrics";
 import AgentMeeting from "@/components/meeting/AgentMeeting";
+import AchievementList from "@/components/achievements/AchievementList";
+import Leaderboard from "@/components/achievements/Leaderboard";
+import MetricsDashboard from "@/components/metrics/MetricsDashboard";
 import KeyboardShortcuts from "@/components/KeyboardShortcuts";
 import { useAgents } from "@/hooks/useAgents";
+import { initialAchievementState, checkAchievements } from "@/lib/achievements";
+import { initialXPState, addXP, calculateTokenXP } from "@/lib/xp";
 import type { AutoworkConfig, AutoworkPolicy, DashboardConfig } from "@/lib/types";
 import { clearConfig, loadConfig, saveConfig } from "@/lib/config";
 
@@ -25,6 +30,8 @@ const DEFAULT_AUTOWORK: AutoworkConfig = {
   policies: {},
 };
 
+type DashboardTab = 'overview' | 'achievements' | 'leaderboard' | 'metrics';
+
 export default function DashboardPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -34,6 +41,11 @@ export default function DashboardPage() {
   const [autoworkLoading, setAutoworkLoading] = useState(true);
   const [autoworkSaving, setAutoworkSaving] = useState(false);
   const [autoworkRunning, setAutoworkRunning] = useState(false);
+  const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
+  
+  // Achievement & XP State
+  const [achievementState, setAchievementState] = useState(initialAchievementState);
+  const [xpState, setXpState] = useState(initialXPState);
 
   const {
     agents,
@@ -54,66 +66,43 @@ export default function DashboardPage() {
   const ownerConfig = config.owner;
   const theme = config.theme;
 
-  // Calculate aggregated token usage from all agents
-  const tokenData = useMemo(() => {
-    let totalInputTokens = 0;
-    let totalOutputTokens = 0;
-    let totalTokens = 0;
-
-    for (const agentId in agentStates) {
-      const state = agentStates[agentId];
-      totalInputTokens += state.inputTokens ?? 0;
-      totalOutputTokens += state.outputTokens ?? 0;
-      totalTokens += state.totalTokens ?? 0;
-    }
-
-    // Also use systemStats total as a fallback
-    const finalTotal = totalTokens || systemStats.totalTokens;
-
-    return {
-      inputTokens: totalInputTokens,
-      outputTokens: totalOutputTokens,
-      totalTokens: finalTotal,
-    };
-  }, [agentStates, systemStats.totalTokens]);
-
-  // Calculate performance metrics from activity feed and agent states
-  const performanceData = useMemo(() => {
-    const tasksCompleted = activityFeed.filter(e => e.type === 'task_complete').length;
-    const tasksFailed = activityFeed.filter(e => e.type === 'task_fail' || e.type === 'error').length;
-    const totalTasks = Math.max(tasksCompleted + tasksFailed, 1);
-    const successRate = ((tasksCompleted / totalTasks) * 100);
-
-    // Calculate XP based on tokens used and tasks completed
-    const xp = Math.floor((tokenData.totalTokens / 100) + (tasksCompleted * 50));
-
-    // Calculate level (every 1000 XP = 1 level)
-    const level = Math.floor(xp / 1000) + 1;
-
-    // Calculate average response time (placeholder - would need real timing data)
-    const avgResponseTime = 2.5; // seconds (placeholder)
-
-    // Generate achievements from activity patterns
-    const achievements: string[] = [];
-    if (tasksCompleted >= 10) achievements.push('Task Master');
-    if (tokenData.totalTokens >= 50000) achievements.push('Token Hoarder');
-    if (systemStats.totalAgents >= 5) achievements.push('Team Builder');
-    if (successRate >= 95) achievements.push('Perfectionist');
-    if (systemStats.activeAgents >= 3) achievements.push('Multitasker');
-
-    return {
-      tasksCompleted,
-      avgResponseTime,
-      successRate,
-      xp,
-      level,
-      achievements,
-    };
-  }, [activityFeed, tokenData.totalTokens, systemStats.totalAgents, systemStats.activeAgents]);
-
   useEffect(() => {
     saveConfig(config);
   }, [config]);
+
+  // Check achievements when stats change
+  useEffect(() => {
+    const stats = {
+      tokens_sent: systemStats.totalTokens || 0,
+      tasks_completed: systemStats.completedTasks || 0,
+      meetings_attended: 0,
+      messages_sent: globalChatMessages.length,
+      days_active: 1,
+    };
+    
+    const newState = checkAchievements(achievementState, stats);
+    if (newState.totalXP !== achievementState.totalXP) {
+      // Add XP from achievements
+      const xpGained = newState.totalXP - achievementState.totalXP;
+      setXpState(prev => addXP(prev, xpGained, 'achievements', 'Achievement unlocked!'));
+    }
+    setAchievementState(newState);
+  }, [systemStats.totalTokens, systemStats.completedTasks, globalChatMessages.length]);
+
+  // Add XP for tokens sent
+  useEffect(() => {
+    if (systemStats.totalTokens > 0) {
+      const tokenXP = calculateTokenXP(systemStats.totalTokens);
+      setXpState(prev => ({
+        ...prev,
+        totalXP: prev.totalXP + tokenXP,
+        level: prev.level,
+        currentXP: prev.currentXP,
+        progressToNextLevel: prev.progressToNextLevel,
+        xpHistory: prev.xpHistory,
+      }));
+    }
+  }, [systemStats.totalTokens]);
 
   const loadAutowork = useCallback(async () => {
     try {
@@ -151,23 +140,6 @@ export default function DashboardPage() {
     }
   }, []);
 
-  const saveAutoworkPolicy = useCallback(async (sessionKey: string, patch: Partial<AutoworkPolicy>) => {
-    try {
-      setAutoworkSaving(true);
-      const response = await fetch("/api/gateway/autowork", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionKey, ...patch }),
-      });
-      const data = await response.json();
-      if (data.ok && data.config) {
-        setAutoworkConfig(data.config);
-      }
-    } finally {
-      setAutoworkSaving(false);
-    }
-  }, []);
-
   const runAutoworkNow = useCallback(async (sessionKey?: string) => {
     try {
       setAutoworkRunning(true);
@@ -182,23 +154,107 @@ export default function DashboardPage() {
     }
   }, [loadAutowork]);
 
-  // Handle keyboard shortcuts
-  const handleShortcut = useCallback((shortcut: string) => {
-    switch (shortcut) {
-      case 'toggle-theme':
-        setConfig(prev => ({
-          ...prev,
-          theme: prev.theme === 'dark' ? 'default' : 'dark',
-        }));
-        break;
-      case 'toggle-office':
-        // Toggle office visibility - could be implemented with a state
-        break;
-      case 'command-palette':
-        setShowSettings(prev => !prev);
-        break;
+  // Render active tab
+  const renderTab = () => {
+    switch (activeTab) {
+      case 'achievements':
+        return (
+          <div className="space-y-6">
+            <AchievementList 
+              achievements={achievementState.achievements}
+              filter="all"
+            />
+          </div>
+        );
+      case 'leaderboard':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Leaderboard
+              entries={agents.map((a, i) => ({
+                rank: i + 1,
+                agentId: a.id,
+                agentName: a.name || a.id,
+                agentEmoji: a.emoji || '🤖',
+                value: agentStates[a.id]?.totalTokens || 0,
+              })).sort((a, b) => b.value - a.value)}
+              title="Top Agents by Tokens"
+              icon="📊"
+            />
+            <Leaderboard
+              entries={agents.map((a, i) => ({
+                rank: i + 1,
+                agentId: a.id,
+                agentName: a.name || a.id,
+                agentEmoji: a.emoji || '🤖',
+                value: agentStates[a.id]?.taskCount || 0,
+              })).sort((a, b) => b.value - a.value)}
+              title="Top Agents by Tasks"
+              icon="✅"
+            />
+          </div>
+        );
+      case 'metrics':
+        return (
+          <MetricsDashboard
+            data={{
+              tokensSent: systemStats.totalTokens || 0,
+              tasksCompleted: systemStats.completedTasks || 0,
+              meetingsAttended: 0,
+              messagesSent: globalChatMessages.length,
+              avgResponseTime: 2.5,
+              productivityScore: 85,
+            }}
+            period="weekly"
+          />
+        );
+      default:
+        return (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+              <div className="lg:col-span-2">
+                <AgentGrid
+                  agents={agents}
+                  agentStates={agentStates}
+                  onChatClick={(id) => setChatAgent(id)}
+                />
+              </div>
+              <div className="space-y-6">
+                <TokenTracker
+                  totalTokens={systemStats.totalTokens || 0}
+                  inputTokens={systemStats.inputTokens || 0}
+                  outputTokens={systemStats.outputTokens || 0}
+                />
+                <PerformanceMetrics
+                  xp={xpState.totalXP}
+                  level={xpState.level}
+                  progress={xpState.progressToNextLevel}
+                  achievementsUnlocked={achievementState.unlockedCount}
+                />
+                <AgentMeeting agents={agents} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
+                <MiniOffice agents={agents} agentStates={agentStates} />
+                <ActivityFeed events={activityFeed} />
+              </div>
+              <div className="space-y-6">
+                <AutoworkPanel
+                  config={autoworkConfig}
+                  isLoading={autoworkLoading}
+                  isSaving={autoworkSaving}
+                  isRunning={autoworkRunning}
+                  onConfigChange={saveAutoworkConfig}
+                  onRunNow={runAutoworkNow}
+                />
+                <SystemStats stats={systemStats} />
+              </div>
+            </div>
+          </>
+        );
     }
-  }, []);
+  };
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)]" data-theme={theme}>
@@ -208,90 +264,54 @@ export default function DashboardPage() {
         onSettingsClick={() => setShowSettings(true)}
       />
 
-      <main className="mx-auto max-w-7xl px-4 pb-8 pt-14">
-        <section className="mb-6">
-          <MiniOffice
-            agents={agents}
-            agentStates={agentStates}
-            ownerConfig={ownerConfig}
-            theme={theme}
-          />
-        </section>
-
-        <section className="mb-6">
-          <SystemStats stats={systemStats} />
-        </section>
-
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <AgentGrid
-              agents={agents}
-              agentStates={agentStates}
-              onChatClick={(id) => setChatAgent(id)}
-              onRestart={(id) => restartSession(id)}
-            />
-          </div>
-
-          <div>
-            <div className="space-y-6">
-              <TokenTracker
-                inputTokens={tokenData.inputTokens}
-                outputTokens={tokenData.outputTokens}
-                totalTokens={tokenData.totalTokens}
-              />
-              <PerformanceMetrics
-                tasksCompleted={performanceData.tasksCompleted}
-                avgResponseTime={performanceData.avgResponseTime}
-                successRate={performanceData.successRate}
-                xp={performanceData.xp}
-                level={performanceData.level}
-                achievements={performanceData.achievements}
-              />
-              <GlobalChatPanel
-                messages={globalChatMessages}
-                connected={connected}
-                demoMode={demoMode}
-                totalAgents={agents.filter((agent) => !agent.isSubagent).length}
-                onSend={(message) => sendGlobalChat(message, ownerConfig)}
-              />
-              <AutoworkPanel
-                agents={agents}
-                config={autoworkConfig}
-                loading={autoworkLoading}
-                saving={autoworkSaving}
-                running={autoworkRunning}
-                onSaveConfig={saveAutoworkConfig}
-                onSavePolicy={saveAutoworkPolicy}
-                onRunNow={runAutoworkNow}
-              />
-              <ActivityFeed events={activityFeed} />
-              
-              {/* AI Council Chamber */}
-              <AgentMeeting agents={agents} />
-            </div>
-          </div>
+      <main className="mx-auto max-w-7xl px-4 pb-8 pt-24">
+        {/* Tab Navigation */}
+        <div className="flex gap-2 mb-6 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-4 py-2 rounded-lg font-mono text-sm transition-all ${
+              activeTab === 'overview'
+                ? 'bg-[var(--accent-primary)] text-white'
+                : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-white/10'
+            }`}
+          >
+            📊 Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('achievements')}
+            className={`px-4 py-2 rounded-lg font-mono text-sm transition-all ${
+              activeTab === 'achievements'
+                ? 'bg-[var(--accent-primary)] text-white'
+                : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-white/10'
+            }`}
+          >
+            🏆 Achievements ({achievementState.unlockedCount}/{achievementState.achievements.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('leaderboard')}
+            className={`px-4 py-2 rounded-lg font-mono text-sm transition-all ${
+              activeTab === 'leaderboard'
+                ? 'bg-[var(--accent-primary)] text-white'
+                : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-white/10'
+            }`}
+          >
+            🏅 Leaderboard
+          </button>
+          <button
+            onClick={() => setActiveTab('metrics')}
+            className={`px-4 py-2 rounded-lg font-mono text-sm transition-all ${
+              activeTab === 'metrics'
+                ? 'bg-[var(--accent-primary)] text-white'
+                : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-white/10'
+            }`}
+          >
+            📈 Metrics
+          </button>
         </div>
+
+        {/* Tab Content */}
+        {renderTab()}
       </main>
-
-      <KeyboardShortcuts
-        isOpen={showShortcuts}
-        onClose={() => setShowShortcuts(false)}
-        onShortcut={handleShortcut}
-      />
-
-      {showSettings && (
-        <SettingsPanel
-          config={config}
-          connected={connected}
-          sessionCount={agents.length}
-          onUpdate={setConfig}
-          onReset={() => {
-            clearConfig();
-            setConfig(loadConfig());
-          }}
-          onClose={() => setShowSettings(false)}
-        />
-      )}
 
       {openAgent && (
         <ChatWindow
@@ -299,10 +319,29 @@ export default function DashboardPage() {
           agentName={openAgent.name}
           agentEmoji={openAgent.emoji}
           agentColor={openAgent.color}
-          messages={chatMessages[openAgent.id] ?? []}
+          messages={chatMessages[openAgent.id] || []}
           onSend={sendChat}
           onClose={() => setChatAgent(null)}
-          onOpen={() => loadChatHistory(openAgent.id)}
+        />
+      )}
+
+      <GlobalChatPanel
+        messages={globalChatMessages}
+        onSend={sendGlobalChat}
+      />
+
+      {showSettings && (
+        <SettingsPanel
+          config={config}
+          onConfigChange={setConfig}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {showShortcuts && (
+        <KeyboardShortcuts
+          isOpen={showShortcuts}
+          onClose={() => setShowShortcuts(false)}
         />
       )}
     </div>
