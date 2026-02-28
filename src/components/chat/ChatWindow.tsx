@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import DOMPurify from "dompurify";
 import type { ChatMessage } from "@/lib/types";
 
 interface ChatWindowProps {
@@ -121,7 +122,7 @@ export default function ChatWindow({
                     : "bg-[var(--bg-card)] text-[var(--text-primary)] rounded-bl-md border border-[var(--border)]"
               }`}
             >
-              {msg.content}
+              {msg.role === "user" || msg.role === "system" ? msg.content : DOMPurify.sanitize(msg.content)}
               {msg.scope !== "history" && (
                 <div
                   className={`text-[10px] mt-1 ${

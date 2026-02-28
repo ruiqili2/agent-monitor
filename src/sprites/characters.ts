@@ -79,6 +79,21 @@ function agentPalette(avatar: AgentAvatar, color: string): CharPalette {
         accent: '#3E2723', accentFrame: '#4E342E',
         pants: '#455A64', shoes: '#37474F', eyes: '#333333',
       };
+    default:
+      return {
+        skin: BASE_SKIN, skinShadow: BASE_SKIN_SHADOW,
+        hair: '#3E2723', hairLight: '#5D4037',
+        top: color, topLight: lighten(color, 20),
+        accent: '#CCCCCC', accentFrame: '#999999',
+        pants: '#455A64', shoes: '#795548', eyes: '#333333',
+      };
+      return {
+        skin: '#D7CCC8', skinShadow: '#BCAAA4',
+        hair: '#795548', hairLight: '#8D6E63',
+        top: color, topLight: lighten(color, 20),
+        accent: '#3E2723', accentFrame: '#4E342E',
+        pants: '#455A64', shoes: '#37474F', eyes: '#333333',
+      };
   }
 }
 
