@@ -80,6 +80,23 @@ const DEMO_AGENTS: AgentConfig[] = [
   { id: 'demo-3', name: 'Spark', emoji: '⚡', color: '#FFCA28', avatar: 'robot' },
 ];
 
+function createDisconnectedStats(): SystemStats {
+  return {
+    totalAgents: 0,
+    mainAgents: 0,
+    subAgents: 0,
+    activeAgents: 0,
+    totalTokens: 0,
+    totalTasks: 0,
+    completedTasks: 0,
+    failedTasks: 0,
+    totalBroadcasts: 0,
+    activeThreads: 0,
+    uptime: 0,
+    connected: false,
+  };
+}
+
 function normalizeSendPolicy(policy: GatewaySessionInfo['sendPolicy']): 'allow' | 'deny' | 'unknown' {
   if (policy === 'allow' || policy === 'deny') return policy;
   return 'unknown';
@@ -235,11 +252,13 @@ function sortSessions(a: GatewaySessionInfo, b: GatewaySessionInfo): number {
 
 export function useAgents(forceDemoMode = false): UseAgentsReturn {
   const [connected, setConnected] = useState(false);
-  const [demoMode, setDemoMode] = useState(true);
-  const [agents, setAgents] = useState<AgentConfig[]>(DEMO_AGENTS);
+  const [demoMode, setDemoMode] = useState(forceDemoMode);
+  const [agents, setAgents] = useState<AgentConfig[]>(forceDemoMode ? DEMO_AGENTS : []);
   const [agentStates, setAgentStates] = useState<Record<string, AgentDashboardState>>({});
   const [activityFeed, setActivityFeed] = useState<ActivityEvent[]>([]);
-  const [systemStats, setSystemStats] = useState<SystemStats>(() => generateDemoStats(DEMO_AGENTS));
+  const [systemStats, setSystemStats] = useState<SystemStats>(() => (
+    forceDemoMode ? generateDemoStats(DEMO_AGENTS) : createDisconnectedStats()
+  ));
   const [chatMessages, setChatMessages] = useState<Record<string, ChatMessage[]>>({});
   const [globalChatMessages, setGlobalChatMessages] = useState<ChatMessage[]>([]);
   const [sessionKeys, setSessionKeys] = useState<Record<string, string>>({});
@@ -253,7 +272,7 @@ export function useAgents(forceDemoMode = false): UseAgentsReturn {
   const keyToIdRef = useRef<Record<string, string>>({});
   const agentMetaRef = useRef<Record<string, Pick<AgentConfig, 'name' | 'emoji'>>>({});
   const sessionKeyRef = useRef<Record<string, string>>({});
-  const demoRef = useRef(true);
+  const demoRef = useRef(forceDemoMode);
 
   useEffect(() => {
     sessionKeyRef.current = sessionKeys;
@@ -305,6 +324,16 @@ export function useAgents(forceDemoMode = false): UseAgentsReturn {
       const data = (await resp.json()) as GatewayApiResponse;
 
       if (!data.ok || !data.sessions?.length) {
+        setConnected(false);
+        setDemoMode(false);
+        setAgents([]);
+        setAgentStates({});
+        setSessionKeys({});
+        keyToIdRef.current = {};
+        setSystemStats((prev) => ({
+          ...createDisconnectedStats(),
+          totalBroadcasts: prev.totalBroadcasts ?? 0,
+        }));
         return false;
       }
 
@@ -368,26 +397,30 @@ export function useAgents(forceDemoMode = false): UseAgentsReturn {
 
       return true;
     } catch {
+      setConnected(false);
+      setDemoMode(false);
+      setSystemStats((prev) => ({
+        ...prev,
+        connected: false,
+        activeAgents: 0,
+      }));
       return false;
     }
   }, [forceDemoMode]);
 
   useEffect(() => {
-    if (forceDemoMode) return;
+    if (forceDemoMode) {
+      setDemoMode(true);
+      return;
+    }
 
     let cancelled = false;
+    let es: EventSource | null = null;
 
-    async function init() {
-      const ok = await fetchSessions();
-      if (cancelled) return;
+    const connectEventStream = () => {
+      if (cancelled || eventSourceRef.current) return;
 
-      if (!ok) {
-        setConnected(false);
-        setDemoMode(true);
-        return;
-      }
-
-      const es = new EventSource('/api/gateway/events');
+      es = new EventSource('/api/gateway/events');
       eventSourceRef.current = es;
 
       es.addEventListener('state', (evt) => {
@@ -524,12 +557,29 @@ export function useAgents(forceDemoMode = false): UseAgentsReturn {
         }
       });
 
-      metadataTimerRef.current = setInterval(() => {
-        void fetchSessions();
-      }, 30_000);
+      es.onerror = () => {
+        if (es?.readyState === EventSource.CLOSED) {
+          es.close();
+          if (eventSourceRef.current === es) {
+            eventSourceRef.current = null;
+          }
+          es = null;
+        }
+      };
+    };
+
+    async function syncGateway() {
+      const ok = await fetchSessions();
+      if (cancelled) return;
+      if (ok) {
+        connectEventStream();
+      }
     }
 
-    void init();
+    void syncGateway();
+    metadataTimerRef.current = setInterval(() => {
+      void syncGateway();
+    }, 5_000);
 
     return () => {
       cancelled = true;

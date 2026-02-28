@@ -128,7 +128,7 @@ describe('Type consistency', () => {
       gateway: { url: 'http://localhost', token: '' },
       theme: 'default',
       connected: false,
-      demoMode: true,
+      demoMode: false,
     };
     expect(config.agents).toEqual([]);
   });
