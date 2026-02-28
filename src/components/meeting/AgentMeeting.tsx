@@ -7,13 +7,32 @@ interface Message {
   agentId: string;
   agentName: string;
   agentEmoji: string;
+  agentType: 'main' | 'subagent' | 'acp';
   content: string;
   timestamp: number;
-  isSubAgent: boolean;
 }
 
 interface AgentMeetingProps {
   agents?: any[];
+}
+
+// Detect agent type from session key
+function getAgentType(sessionKey: string): 'main' | 'subagent' | 'acp' {
+  if (sessionKey.includes(':acp:')) return 'acp';
+  if (sessionKey.includes(':subagent:')) return 'subagent';
+  return 'main';
+}
+
+// Get agent type badge
+function getAgentTypeBadge(type: 'main' | 'subagent' | 'acp') {
+  switch (type) {
+    case 'acp':
+      return { label: 'ACP', color: '#8B5CF6', emoji: '⚡' };
+    case 'subagent':
+      return { label: 'Sub-Agent', color: '#F59E0B', emoji: '🧩' };
+    default:
+      return { label: 'Main', color: '#10B981', emoji: '🤖' };
+  }
 }
 
 export default function AgentMeeting({ agents = [] }: AgentMeetingProps) {
@@ -37,9 +56,9 @@ export default function AgentMeeting({ agents = [] }: AgentMeetingProps) {
       agentId: 'system',
       agentName: 'System',
       agentEmoji: '🤖',
-      content: 'Meeting started! All agents can now collaborate.',
+      agentType: 'main',
+      content: 'Meeting started! All agents (Main, Sub-Agents, and ACP) can now collaborate.',
       timestamp: Date.now(),
-      isSubAgent: false,
     }]);
   };
 
@@ -56,9 +75,9 @@ export default function AgentMeeting({ agents = [] }: AgentMeetingProps) {
       agentId: 'user',
       agentName: 'You',
       agentEmoji: '👤',
+      agentType: 'main',
       content: inputMessage.trim(),
       timestamp: Date.now(),
-      isSubAgent: false,
     };
     
     setMessages([...messages, newMessage]);
@@ -68,6 +87,8 @@ export default function AgentMeeting({ agents = [] }: AgentMeetingProps) {
     setTimeout(() => {
       const randomAgent = agents[Math.floor(Math.random() * agents.length)];
       if (randomAgent) {
+        const agentType = getAgentType(randomAgent.key || '');
+        const badge = getAgentTypeBadge(agentType);
         const responses = [
           'I can help with that!',
           'Working on it now...',
@@ -79,15 +100,32 @@ export default function AgentMeeting({ agents = [] }: AgentMeetingProps) {
           id: `agent-${Date.now()}`,
           agentId: randomAgent.id,
           agentName: randomAgent.name || 'Agent',
-          agentEmoji: randomAgent.emoji || '🤖',
+          agentEmoji: randomAgent.emoji || badge.emoji,
+          agentType: agentType,
           content: responses[Math.floor(Math.random() * responses.length)],
           timestamp: Date.now(),
-          isSubAgent: randomAgent.isSubagent || false,
         };
         setMessages(prev => [...prev, agentMessage]);
       }
     }, 1500);
   };
+
+  // Get all unique agents from sessions
+  const allAgents = React.useMemo(() => {
+    const agentMap = new Map();
+    agents.forEach(agent => {
+      if (!agentMap.has(agent.id)) {
+        const agentType = getAgentType(agent.key || '');
+        const badge = getAgentTypeBadge(agentType);
+        agentMap.set(agent.id, {
+          ...agent,
+          agentType,
+          badge,
+        });
+      }
+    });
+    return Array.from(agentMap.values());
+  }, [agents]);
 
   if (!isMeetingActive) {
     return (
@@ -104,36 +142,43 @@ export default function AgentMeeting({ agents = [] }: AgentMeetingProps) {
           </button>
         </div>
         <p className="text-[var(--text-secondary)] text-sm mb-4">
-          Bring all your agents together for collaborative discussions, brainstorming, and decision-making.
+          Bring all your agents together for collaborative discussions. Supports Main agents, Sub-agents, and ACP agents (Codex, Claude Code).
         </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
           <div className="flex items-center gap-1 text-[var(--text-secondary)]">
-            <span>🧠</span> Brainstorming
+            <span>🤖</span> Main Agents
+          </div>
+          <div className="flex items-center gap-1 text-[var(--text-secondary)]">
+            <span>🧩</span> Sub-Agents
+          </div>
+          <div className="flex items-center gap-1 text-[var(--text-secondary)]">
+            <span>⚡</span> ACP Agents
           </div>
           <div className="flex items-center gap-1 text-[var(--text-secondary)]">
             <span>🤝</span> Collaboration
           </div>
-          <div className="flex items-center gap-1 text-[var(--text-secondary)]">
-            <span>📋</span> Planning
-          </div>
-          <div className="flex items-center gap-1 text-[var(--text-secondary)]">
-            <span>✅</span> Decision Making
-          </div>
         </div>
-        {agents.length > 0 && (
+        {allAgents.length > 0 && (
           <div className="mt-4 pt-4 border-t border-[var(--border)]">
             <p className="text-xs text-[var(--text-secondary)] mb-2">
-              Available Agents ({agents.length}):
+              Available Agents ({allAgents.length}):
             </p>
-            <div className="flex flex-wrap gap-1">
-              {agents.slice(0, 8).map(agent => (
-                <span key={agent.id} className="text-xs px-2 py-1 bg-[var(--bg-secondary)] rounded">
-                  {agent.emoji || '🤖'} {agent.name || agent.id}
+            <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto">
+              {allAgents.slice(0, 12).map(agent => (
+                <span 
+                  key={agent.id} 
+                  className="text-xs px-2 py-1 bg-[var(--bg-secondary)] rounded border"
+                  style={{ borderColor: agent.badge.color }}
+                >
+                  {agent.emoji || agent.badge.emoji} {agent.name || agent.id}
+                  <span className="ml-1 text-[9px]" style={{ color: agent.badge.color }}>
+                    [{agent.badge.label}]
+                  </span>
                 </span>
               ))}
-              {agents.length > 8 && (
+              {allAgents.length > 12 && (
                 <span className="text-xs px-2 py-1 bg-[var(--bg-secondary)] rounded">
-                  +{agents.length - 8} more
+                  +{allAgents.length - 12} more
                 </span>
               )}
             </div>
@@ -165,32 +210,38 @@ export default function AgentMeeting({ agents = [] }: AgentMeetingProps) {
           </div>
         ) : (
           <div className="space-y-3">
-            {messages.map(msg => (
-              <div
-                key={msg.id}
-                className={`flex items-start gap-2 ${msg.agentId === 'user' ? 'flex-row-reverse' : ''}`}
-              >
-                <span className="text-lg">{msg.agentEmoji}</span>
-                <div className={`flex-1 ${msg.agentId === 'user' ? 'text-right' : ''}`}>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-mono text-[var(--text-primary)]">
-                      {msg.agentName}
-                    </span>
-                    {msg.isSubAgent && (
-                      <span className="text-[10px] px-1.5 py-0.5 bg-[var(--accent-primary)] text-white rounded">
-                        Sub-Agent
+            {messages.map(msg => {
+              const badge = msg.agentType !== 'main' ? getAgentTypeBadge(msg.agentType) : null;
+              return (
+                <div
+                  key={msg.id}
+                  className={`flex items-start gap-2 ${msg.agentId === 'user' ? 'flex-row-reverse' : ''}`}
+                >
+                  <span className="text-lg">{msg.agentEmoji}</span>
+                  <div className={`flex-1 ${msg.agentId === 'user' ? 'text-right' : ''}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-mono text-[var(--text-primary)]">
+                        {msg.agentName}
                       </span>
-                    )}
-                    <span className="text-[10px] text-[var(--text-secondary)]">
-                      {new Date(msg.timestamp).toLocaleTimeString()}
-                    </span>
+                      {badge && (
+                        <span 
+                          className="text-[10px] px-1.5 py-0.5 rounded text-white"
+                          style={{ backgroundColor: badge.color }}
+                        >
+                          {badge.emoji} {badge.label}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-[var(--text-secondary)]">
+                        {new Date(msg.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <p className="text-sm text-[var(--text-secondary)] bg-[var(--bg-card)] px-3 py-2 rounded-lg inline-block">
+                      {msg.content}
+                    </p>
                   </div>
-                  <p className="text-sm text-[var(--text-secondary)] bg-[var(--bg-card)] px-3 py-2 rounded-lg inline-block">
-                    {msg.content}
-                  </p>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             <div ref={messagesEndRef} />
           </div>
         )}
@@ -217,20 +268,20 @@ export default function AgentMeeting({ agents = [] }: AgentMeetingProps) {
       {/* Participants */}
       <div className="mt-4 pt-4 border-t border-[var(--border)]">
         <p className="text-xs text-[var(--text-secondary)] mb-2">
-          Participants ({agents.length + 1}):
+          Participants ({allAgents.length + 1}):
         </p>
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
           <span className="text-xs px-2 py-1 bg-[var(--bg-card)] rounded">
             👤 You
           </span>
-          {agents.slice(0, 6).map(agent => (
-            <span key={agent.id} className="text-xs px-2 py-1 bg-[var(--bg-card)] rounded">
-              {agent.emoji || '🤖'} {agent.name || agent.id}
+          {allAgents.slice(0, 8).map(agent => (
+            <span key={agent.id} className="text-xs px-2 py-1 bg-[var(--bg-card)] rounded border" style={{ borderColor: agent.badge.color }}>
+              {agent.emoji || agent.badge.emoji} {agent.name || agent.id}
             </span>
           ))}
-          {agents.length > 6 && (
+          {allAgents.length > 8 && (
             <span className="text-xs px-2 py-1 bg-[var(--bg-card)] rounded">
-              +{agents.length - 6} more
+              +{allAgents.length - 8} more
             </span>
           )}
         </div>
