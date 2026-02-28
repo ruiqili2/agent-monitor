@@ -24,7 +24,7 @@ import type { AutoworkConfig, AutoworkPolicy, DashboardConfig } from "@/lib/type
 import { clearConfig, loadConfig, saveConfig } from "@/lib/config";
 
 const DEFAULT_AUTOWORK: AutoworkConfig = {
-  maxSendsPerTick: 2,
+  maxSendsPerTick: 0,
   defaultDirective:
     "Check your memory and recent context, then continue the highest-impact task for your role. Do real work now and move the task forward.",
   policies: {},
