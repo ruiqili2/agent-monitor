@@ -62,6 +62,18 @@ export default function Navbar({ connected, demoMode, onSettingsClick }: NavbarP
           }}
         >
           🏢 Office View
+        <Link
+          href="/council"
+          className={`px-3 py-1.5 rounded-md text-xs font-mono transition-colors ${
+            pathname === '/council' ? 'text-white' : ''
+          }`}
+          style={{
+            backgroundColor: pathname === '/council' ? 'var(--accent-primary)20' : 'transparent',
+            color: pathname === '/council' ? 'var(--accent-primary)' : 'var(--text-secondary)',
+          }}
+        >
+          🏛️ Council
+        </Link>
         </Link>
       </div>
 
