@@ -10,12 +10,18 @@
 import { NextResponse } from 'next/server';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { ensureAutoworkTicker } from '@/lib/autowork';
 import {
   getGatewayConnection,
   readOpenClawConfig,
   type SessionsListResult,
 } from '@/lib/gateway-connection';
-import { executionStateToBehavior, isActiveBehavior } from '@/lib/state-mapper';
+import {
+  executionStateToBehavior,
+  getToolSnapshot,
+  isActiveBehavior,
+  summarizeExecution,
+} from '@/lib/state-mapper';
 
 /** Read bot name from IDENTITY.md **Name:** field */
 function readBotName(): string | null {
@@ -30,6 +36,22 @@ function readBotName(): string | null {
   }
 }
 
+function canonicalSessionLookupKey(key: string): string {
+  if (key.includes('subagent')) return key;
+  const parts = key.split(':');
+  if (parts[0] === 'agent' && parts[1]) {
+    return parts.slice(0, 2).join(':');
+  }
+  return key;
+}
+
+function inferParentSessionKey(key: string): string | null {
+  const parts = key.split(':');
+  const idx = parts.lastIndexOf('subagent');
+  if (idx <= 1) return null;
+  return parts.slice(0, idx).join(':');
+}
+
 export async function GET() {
   const config = readOpenClawConfig();
   if (!config) {
@@ -40,6 +62,7 @@ export async function GET() {
   }
 
   try {
+    ensureAutoworkTicker();
     const gw = getGatewayConnection();
 
     // Fetch session metadata via RPC (uses persistent connection if ready,
@@ -61,6 +84,7 @@ export async function GET() {
       const liveState = liveStates.get(s.key);
       const behavior = executionStateToBehavior(liveState, s.abortedLastRun);
       const isActive = isActiveBehavior(behavior);
+      const { toolName, toolPhase } = getToolSnapshot(liveState?.agentEventData);
 
       // Resolve agent info from agents map, fall back to session key parsing
       const keyParts = s.key.split(':');
@@ -78,18 +102,48 @@ export async function GET() {
       }
 
       return {
-        id: s.sessionId,
+        id: s.sessionId ?? s.key,
         key: s.key,
         name: agentName,
         emoji: agentInfo?.identity?.emoji,
-        model: s.model,
+        modelProvider: s.modelProvider ?? null,
+        model: s.model ?? 'unknown',
+        inputTokens: s.inputTokens ?? 0,
+        outputTokens: s.outputTokens ?? 0,
         totalTokens: s.totalTokens ?? 0,
         contextTokens: s.contextTokens ?? 0,
-        channel: s.lastChannel ?? s.channel,
+        channel: s.lastChannel ?? s.channel ?? 'default',
+        kind: s.kind ?? 'unknown',
+        label: s.label ?? null,
+        displayName: s.displayName ?? null,
+        derivedTitle: s.derivedTitle ?? null,
+        lastMessagePreview: s.lastMessagePreview ?? null,
         // Raw statuses from gateway events (recorded as-is)
         chatStatus: liveState?.chatStatus ?? null,
         agentStatus: liveState?.agentStatus ?? null,
         agentEventData: liveState?.agentEventData ?? null,
+        currentToolName: toolName,
+        currentToolPhase: toolPhase,
+        statusSummary: summarizeExecution({
+          behavior,
+          agentStatus: liveState?.agentStatus ?? null,
+          chatStatus: liveState?.chatStatus ?? null,
+          agentEventData: liveState?.agentEventData ?? null,
+          isSubagent,
+        }),
+        parentSessionId: null as string | null,
+        parentSessionKey: null as string | null,
+        rootSessionId: null as string | null,
+        childSessionIds: [] as string[],
+        depth: s.key.split(':').filter((part) => part === 'subagent').length,
+        sendPolicy: s.sendPolicy ?? null,
+        thinkingLevel: s.thinkingLevel ?? null,
+        verboseLevel: s.verboseLevel ?? null,
+        reasoningLevel: s.reasoningLevel ?? null,
+        elevatedLevel: s.elevatedLevel ?? null,
+        avatarUrl: agentInfo?.identity?.avatarUrl ?? null,
+        identityTheme: agentInfo?.identity?.theme ?? null,
+        lastRunId: liveState?.lastRunId ?? null,
         // Derived behavior for backward compat with office view
         behavior,
         isActive,
@@ -105,13 +159,45 @@ export async function GET() {
     const sessionMap = new Map<string, typeof sessions[0]>();
     for (const sess of sessions) {
       // Group key: for "agent:main:main" -> "agent:main", for subagents keep full key
-      const groupKey = sess.isSubagent ? sess.key : sess.key.split(':').slice(0, 2).join(':');
+      const groupKey = sess.isSubagent ? sess.key : canonicalSessionLookupKey(sess.key);
       const existing = sessionMap.get(groupKey);
       if (!existing || sess.totalTokens > existing.totalTokens || (sess.totalTokens === existing.totalTokens && (sess.lastActivity ?? 0) > (existing.lastActivity ?? 0))) {
         sessionMap.set(groupKey, sess);
       }
     }
     const dedupedSessions = Array.from(sessionMap.values());
+
+    const byKey = new Map<string, typeof dedupedSessions[0]>();
+    const byId = new Map<string, typeof dedupedSessions[0]>();
+    for (const sess of dedupedSessions) {
+      byKey.set(sess.key, sess);
+      byKey.set(canonicalSessionLookupKey(sess.key), sess);
+      byId.set(sess.id, sess);
+    }
+
+    for (const sess of dedupedSessions) {
+      const parentKey = inferParentSessionKey(sess.key);
+      const parent = parentKey
+        ? byKey.get(parentKey) ?? byKey.get(canonicalSessionLookupKey(parentKey))
+        : null;
+      if (parent) {
+        sess.parentSessionId = parent.id;
+        sess.parentSessionKey = parent.key;
+        parent.childSessionIds = [...(parent.childSessionIds ?? []), sess.id];
+      }
+    }
+
+    for (const sess of dedupedSessions) {
+      let root = sess;
+      let hops = 0;
+      while (root.parentSessionId && hops < 8) {
+        const parent = byId.get(root.parentSessionId);
+        if (!parent) break;
+        root = parent;
+        hops++;
+      }
+      sess.rootSessionId = root.id;
+    }
 
     return NextResponse.json({
       ok: true,

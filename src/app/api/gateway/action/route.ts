@@ -53,6 +53,47 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true, result });
       }
 
+      case 'broadcast': {
+        const sessionKeys = Array.isArray((body as { sessionKeys?: unknown[] }).sessionKeys)
+          ? ((body as { sessionKeys?: string[] }).sessionKeys ?? []).filter(Boolean)
+          : [];
+        if (sessionKeys.length === 0 || !message) {
+          return NextResponse.json({ error: 'sessionKeys and message required' }, { status: 400 });
+        }
+
+        const results = await Promise.allSettled(
+          sessionKeys.map((key, index) => gw.request('chat.send', {
+            sessionKey: key,
+            idempotencyKey: `am-bc-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+            message,
+          })),
+        );
+
+        const delivered = results
+          .map((result, index) => ({ result, sessionKey: sessionKeys[index] }))
+          .filter((entry) => entry.result.status === 'fulfilled')
+          .map((entry) => ({
+            sessionKey: entry.sessionKey,
+            result: (entry.result as PromiseFulfilledResult<unknown>).value,
+          }));
+
+        const failed = results
+          .map((result, index) => ({ result, sessionKey: sessionKeys[index] }))
+          .filter((entry) => entry.result.status === 'rejected')
+          .map((entry) => ({
+            sessionKey: entry.sessionKey,
+            error: (entry.result as PromiseRejectedResult).reason instanceof Error
+              ? (entry.result as PromiseRejectedResult).reason.message
+              : String((entry.result as PromiseRejectedResult).reason),
+          }));
+
+        return NextResponse.json({
+          ok: failed.length === 0,
+          delivered,
+          failed,
+        });
+      }
+
       case 'compact': {
         if (!sessionKey) {
           return NextResponse.json({ error: 'sessionKey required' }, { status: 400 });

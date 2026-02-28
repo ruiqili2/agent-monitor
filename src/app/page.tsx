@@ -1,21 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAgents } from "@/hooks/useAgents";
 import Navbar from "@/components/dashboard/Navbar";
 import SystemStats from "@/components/dashboard/SystemStats";
 import AgentGrid from "@/components/dashboard/AgentGrid";
 import ActivityFeed from "@/components/dashboard/ActivityFeed";
+import AutoworkPanel from "@/components/dashboard/AutoworkPanel";
 import MiniOffice from "@/components/office/MiniOffice";
-import SettingsPanel from "@/components/settings/SettingsPanel";
 import ChatWindow from "@/components/chat/ChatWindow";
-import type { DashboardConfig, ThemeName } from "@/lib/types";
+import GlobalChatPanel from "@/components/chat/GlobalChatPanel";
+import type { AutoworkConfig, AutoworkPolicy, ThemeName } from "@/lib/types";
 import { loadConfig, DEFAULT_OWNER } from "@/lib/config";
+
+const DEFAULT_AUTOWORK: AutoworkConfig = {
+  maxSendsPerTick: 2,
+  defaultDirective:
+    "Check your memory and recent context, then continue the highest-impact task for your role. Do real work now and move the task forward.",
+  policies: {},
+};
 
 export default function DashboardPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [chatAgent, setChatAgent] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeName>("default");
+  const [autoworkConfig, setAutoworkConfig] = useState<AutoworkConfig>(DEFAULT_AUTOWORK);
+  const [autoworkLoading, setAutoworkLoading] = useState(true);
+  const [autoworkSaving, setAutoworkSaving] = useState(false);
+  const [autoworkRunning, setAutoworkRunning] = useState(false);
 
   const {
     agents,
@@ -25,7 +37,9 @@ export default function DashboardPage() {
     demoMode,
     connected,
     chatMessages,
+    globalChatMessages,
     sendChat,
+    sendGlobalChat,
     setBehavior,
     restartSession,
     loadChatHistory,
@@ -39,6 +53,73 @@ export default function DashboardPage() {
     }
     return DEFAULT_OWNER;
   });
+
+  const loadAutowork = useCallback(async () => {
+    try {
+      setAutoworkLoading(true);
+      const response = await fetch("/api/gateway/autowork");
+      const data = await response.json();
+      if (data.ok && data.config) {
+        setAutoworkConfig(data.config);
+      }
+    } catch {
+      // Keep defaults
+    } finally {
+      setAutoworkLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadAutowork();
+  }, [loadAutowork, connected]);
+
+  const saveAutoworkConfig = useCallback(async (patch: Partial<AutoworkConfig>) => {
+    try {
+      setAutoworkSaving(true);
+      const response = await fetch("/api/gateway/autowork", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      const data = await response.json();
+      if (data.ok && data.config) {
+        setAutoworkConfig(data.config);
+      }
+    } finally {
+      setAutoworkSaving(false);
+    }
+  }, []);
+
+  const saveAutoworkPolicy = useCallback(async (sessionKey: string, patch: Partial<AutoworkPolicy>) => {
+    try {
+      setAutoworkSaving(true);
+      const response = await fetch("/api/gateway/autowork", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionKey, ...patch }),
+      });
+      const data = await response.json();
+      if (data.ok && data.config) {
+        setAutoworkConfig(data.config);
+      }
+    } finally {
+      setAutoworkSaving(false);
+    }
+  }, []);
+
+  const runAutoworkNow = useCallback(async (sessionKey?: string) => {
+    try {
+      setAutoworkRunning(true);
+      await fetch("/api/gateway/autowork", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sessionKey ? { sessionKey } : {}),
+      });
+      await loadAutowork();
+    } finally {
+      setAutoworkRunning(false);
+    }
+  }, [loadAutowork]);
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)]" data-theme={theme}>
@@ -75,7 +156,26 @@ export default function DashboardPage() {
             />
           </div>
           <div>
-            <ActivityFeed events={activityFeed} />
+            <div className="space-y-6">
+              <GlobalChatPanel
+                messages={globalChatMessages}
+                connected={connected}
+                demoMode={demoMode}
+                totalAgents={agents.filter((agent) => !agent.isSubagent).length}
+                onSend={(message) => sendGlobalChat(message, ownerConfig)}
+              />
+              <AutoworkPanel
+                agents={agents}
+                config={autoworkConfig}
+                loading={autoworkLoading}
+                saving={autoworkSaving}
+                running={autoworkRunning}
+                onSaveConfig={saveAutoworkConfig}
+                onSavePolicy={saveAutoworkPolicy}
+                onRunNow={runAutoworkNow}
+              />
+              <ActivityFeed events={activityFeed} />
+            </div>
           </div>
         </div>
       </main>

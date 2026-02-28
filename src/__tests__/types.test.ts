@@ -12,6 +12,7 @@ import type {
   AgentTask,
   TokenUsage,
   ActivityEvent,
+  ChatMessage,
   SystemStats,
   DashboardConfig,
   GatewayConfig,
@@ -93,6 +94,21 @@ describe('Type consistency', () => {
       'tool_call', 'message', 'error', 'system',
     ];
     expect(types).toHaveLength(8);
+  });
+
+  it('ChatMessage has required shape', () => {
+    const message: ChatMessage = {
+      id: 'msg-1',
+      agentId: 'agent-1',
+      agentName: 'Atlas',
+      agentEmoji: 'A',
+      role: 'user',
+      content: 'Hello',
+      timestamp: Date.now(),
+      scope: 'direct',
+      channel: 'agent',
+    };
+    expect(message.content).toBe('Hello');
   });
 
   it('AgentTask status union is complete', () => {

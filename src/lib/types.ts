@@ -214,6 +214,28 @@ export interface AgentConfig {
   emoji: string;
   color: string;
   avatar: AgentAvatar;
+  model?: string;
+  modelProvider?: string;
+  channel?: string;
+  sessionKey?: string;
+  sessionKind?: 'direct' | 'group' | 'global' | 'unknown';
+  label?: string | null;
+  displayName?: string | null;
+  derivedTitle?: string | null;
+  lastMessagePreview?: string | null;
+  isSubagent?: boolean;
+  parentId?: string | null;
+  parentSessionKey?: string | null;
+  rootId?: string | null;
+  depth?: number;
+  subagentIds?: string[];
+  sendPolicy?: 'allow' | 'deny' | 'unknown';
+  thinkingLevel?: string | null;
+  verboseLevel?: string | null;
+  reasoningLevel?: string | null;
+  elevatedLevel?: string | null;
+  avatarUrl?: string | null;
+  identityTheme?: string | null;
 }
 
 /** Owner configuration */
@@ -272,6 +294,25 @@ export interface ActivityEvent {
   timestamp: number;
 }
 
+export type ChatScope = 'direct' | 'broadcast' | 'history';
+
+export type ChatChannel = 'agent' | 'global';
+
+/** Shared chat message shape for direct and global chat views. */
+export interface ChatMessage {
+  id: string;
+  agentId: string;
+  agentName: string;
+  agentEmoji: string;
+  role: 'user' | 'agent' | 'system';
+  content: string;
+  timestamp: number;
+  scope: ChatScope;
+  channel: ChatChannel;
+  targetIds?: string[];
+  isThinking?: boolean;
+}
+
 /** Full agent dashboard state */
 export interface AgentDashboardState {
   behavior: AgentBehavior;
@@ -279,22 +320,55 @@ export interface AgentDashboardState {
   currentTask: AgentTask | null;
   taskHistory: AgentTask[];
   tokenUsage: TokenUsage[];
+  inputTokens?: number;
+  outputTokens?: number;
   totalTokens: number;
   contextTokens?: number;
+  maxContextTokens?: number;
   totalTasks: number;
   lastActivity: number;
   sessionLog: string[];
+  streamType?: string | null;
+  toolName?: string | null;
+  toolPhase?: string | null;
+  statusSummary?: string;
+  lastRunId?: string | null;
+  lastMessagePreview?: string | null;
+  sendPolicy?: 'allow' | 'deny' | 'unknown';
+  reasoningLevel?: string | null;
+  thinkingLevel?: string | null;
+  verboseLevel?: string | null;
+  elevatedLevel?: string | null;
   uptime: number;
 }
 
 /** System-wide statistics */
 export interface SystemStats {
   totalAgents: number;
+  mainAgents?: number;
+  subAgents?: number;
   activeAgents: number;
   totalTokens: number;
   totalTasks: number;
   completedTasks: number;
   failedTasks: number;
+  totalBroadcasts?: number;
+  activeThreads?: number;
   uptime: number;
   connected: boolean;
+}
+
+/** Persisted auto-work policy for a single session. */
+export interface AutoworkPolicy {
+  enabled: boolean;
+  intervalMs: number;
+  directive: string;
+  lastSentAt: number;
+}
+
+/** Dashboard-visible auto-work settings. */
+export interface AutoworkConfig {
+  maxSendsPerTick: number;
+  defaultDirective: string;
+  policies: Record<string, AutoworkPolicy>;
 }

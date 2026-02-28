@@ -67,6 +67,7 @@ export default function AgentCard({ agent, state, onChatClick, onRestart }: Agen
   const behavior = state?.behavior ?? 'idle';
   const info = BEHAVIOR_INFO[behavior];
   const isAnomaly = info.category === 'anomaly';
+  const subagentCount = agent.subagentIds?.length ?? 0;
 
   useEffect(() => {
     const update = () => {
@@ -117,6 +118,31 @@ export default function AgentCard({ agent, state, onChatClick, onRestart }: Agen
           <div className="mt-1">
             <StatusBadge behavior={behavior} size="sm" />
           </div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {agent.isSubagent ? (
+              <span
+                className="text-[9px] font-mono px-1.5 py-0.5 rounded"
+                style={{ backgroundColor: 'var(--accent-warning)20', color: 'var(--accent-warning)' }}
+              >
+                SUBAGENT
+              </span>
+            ) : subagentCount > 0 ? (
+              <span
+                className="text-[9px] font-mono px-1.5 py-0.5 rounded"
+                style={{ backgroundColor: 'var(--accent-success)20', color: 'var(--accent-success)' }}
+              >
+                +{subagentCount} subagent{subagentCount === 1 ? '' : 's'}
+              </span>
+            ) : null}
+            {agent.sessionKind && agent.sessionKind !== 'unknown' && (
+              <span
+                className="text-[9px] font-mono px-1.5 py-0.5 rounded"
+                style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}
+              >
+                {agent.sessionKind}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -138,10 +164,34 @@ export default function AgentCard({ agent, state, onChatClick, onRestart }: Agen
         </div>
       )}
 
+      {state?.statusSummary && (
+        <div className="mb-2">
+          <p className="text-[10px] leading-4 line-clamp-2" style={{ color: 'var(--text-primary)' }}>
+            {state.statusSummary}
+          </p>
+        </div>
+      )}
+
+      {state?.toolName && (
+        <div className="mb-2">
+          <span className="text-[10px] font-mono" style={{ color: 'var(--accent-warning)' }}>
+            Tool: {state.toolName}{state.toolPhase ? ` (${state.toolPhase})` : ''}
+          </span>
+        </div>
+      )}
+
       {/* Token bar */}
       <div className="mb-2">
         <TokenBar used={state?.totalTokens ?? 0} max={state?.contextTokens || 128000} />
       </div>
+
+      {agent.lastMessagePreview && (
+        <div className="mb-2">
+          <p className="text-[10px] line-clamp-2" style={{ color: 'var(--text-secondary)' }}>
+            {agent.lastMessagePreview}
+          </p>
+        </div>
+      )}
 
       {/* Footer: Last activity + Actions */}
       <div className="flex items-center justify-between">

@@ -1,13 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-
-interface ChatMessage {
-  id: string;
-  role: "user" | "agent";
-  content: string;
-  timestamp: number;
-}
+import type { ChatMessage } from "@/lib/types";
 
 interface ChatWindowProps {
   agentId: string;
@@ -122,11 +116,13 @@ export default function ChatWindow({
               className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${
                 msg.role === "user"
                   ? "bg-[var(--accent-primary)] text-white rounded-br-md"
-                  : "bg-[var(--bg-card)] text-[var(--text-primary)] rounded-bl-md border border-[var(--border)]"
+                  : msg.role === "system"
+                    ? "bg-[var(--bg-secondary)] text-[var(--text-secondary)] rounded-bl-md border border-[var(--border)]"
+                    : "bg-[var(--bg-card)] text-[var(--text-primary)] rounded-bl-md border border-[var(--border)]"
               }`}
             >
               {msg.content}
-              {!msg.id.startsWith("history-") && (
+              {msg.scope !== "history" && (
                 <div
                   className={`text-[10px] mt-1 ${
                     msg.role === "user" ? "text-white/60" : "text-[var(--text-secondary)]"
