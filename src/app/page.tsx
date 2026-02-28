@@ -186,7 +186,7 @@ export default function DashboardPage() {
                 agentId: a.id,
                 agentName: a.name || a.id,
                 agentEmoji: a.emoji || '🤖',
-                value: agentStates[a.id]?.taskCount || 0,
+                value: 0 || 0,
               })).sort((a, b) => b.value - a.value)}
               title="Top Agents by Tasks"
               icon="✅"
@@ -221,8 +221,8 @@ export default function DashboardPage() {
               <div className="space-y-6">
                 <TokenTracker
                   totalTokens={systemStats.totalTokens || 0}
-                  inputTokens={systemStats.inputTokens || 0}
-                  outputTokens={systemStats.outputTokens || 0}
+                  inputTokens={systemStats.totalTokens || 0}
+                  outputTokens={0}
                 />
                 <PerformanceMetrics
                   xp={xpState.totalXP}
