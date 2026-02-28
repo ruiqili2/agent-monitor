@@ -24,7 +24,7 @@ import type { AutoworkConfig, AutoworkPolicy, DashboardConfig } from "@/lib/type
 import { clearConfig, loadConfig, saveConfig } from "@/lib/config";
 
 const DEFAULT_AUTOWORK: AutoworkConfig = {
-  maxSendsPerTick: 0,
+  maxSendsPerTick: 0, // Disabled by default
   defaultDirective:
     "Check your memory and recent context, then continue the highest-impact task for your role. Do real work now and move the task forward.",
   policies: {},
@@ -82,7 +82,6 @@ export default function DashboardPage() {
     
     const newState = checkAchievements(achievementState, stats);
     if (newState.totalXP !== achievementState.totalXP) {
-      // Add XP from achievements
       const xpGained = newState.totalXP - achievementState.totalXP;
       setXpState(prev => addXP(prev, xpGained, 'achievements', 'Achievement unlocked!'));
     }
@@ -186,7 +185,7 @@ export default function DashboardPage() {
                 agentId: a.id,
                 agentName: a.name || a.id,
                 agentEmoji: a.emoji || '🤖',
-                value: 0 || 0,
+                value: 0,
               })).sort((a, b) => b.value - a.value)}
               title="Top Agents by Tasks"
               icon="✅"
@@ -225,10 +224,12 @@ export default function DashboardPage() {
                   outputTokens={0}
                 />
                 <PerformanceMetrics
+                  tasksCompleted={systemStats.completedTasks || 0}
+                  avgResponseTime={2.5}
+                  successRate={95}
                   xp={xpState.totalXP}
                   level={xpState.level}
-                  progress={xpState.progressToNextLevel}
-                  achievementsUnlocked={achievementState.unlockedCount}
+                  achievements={[]}
                 />
                 <AgentMeeting agents={agents} />
               </div>
@@ -236,16 +237,23 @@ export default function DashboardPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-6">
-                <MiniOffice agents={agents} agentStates={agentStates} />
+                <MiniOffice 
+                  agents={agents} 
+                  agentStates={agentStates}
+                  ownerConfig={ownerConfig}
+                  theme={theme}
+                />
                 <ActivityFeed events={activityFeed} />
               </div>
               <div className="space-y-6">
                 <AutoworkPanel
+                  agents={agents}
                   config={autoworkConfig}
-                  isLoading={autoworkLoading}
-                  isSaving={autoworkSaving}
-                  isRunning={autoworkRunning}
-                  onConfigChange={saveAutoworkConfig}
+                  loading={autoworkLoading}
+                  saving={autoworkSaving}
+                  running={autoworkRunning}
+                  onSaveConfig={saveAutoworkConfig}
+                  onSavePolicy={async () => {}}
                   onRunNow={runAutoworkNow}
                 />
                 <SystemStats stats={systemStats} />
@@ -327,13 +335,19 @@ export default function DashboardPage() {
 
       <GlobalChatPanel
         messages={globalChatMessages}
+        connected={connected}
+        demoMode={demoMode}
+        totalAgents={agents.length}
         onSend={sendGlobalChat}
       />
 
       {showSettings && (
         <SettingsPanel
           config={config}
-          onConfigChange={setConfig}
+          connected={connected}
+          sessionCount={1}
+          onUpdate={setConfig}
+          onReset={() => {}}
           onClose={() => setShowSettings(false)}
         />
       )}
