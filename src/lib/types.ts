@@ -372,3 +372,16 @@ export interface AutoworkConfig {
   defaultDirective: string;
   policies: Record<string, AutoworkPolicy>;
 }
+
+// ACP Agent Support
+export interface ACPAgent extends AgentConfig {
+  runtime: 'acp';
+  agentId: string;  // codex, claude-code, etc.
+  sessionId?: string;
+}
+
+export type AgentType = 'main' | 'subagent' | 'acp';
+
+export interface AgentWithType extends AgentConfig {
+  agentType: AgentType;
+}

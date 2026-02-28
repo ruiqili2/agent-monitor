@@ -73,9 +73,9 @@ export interface DeliberationSession {
  */
 export type DeliberationEvent =
   | { type: 'START'; topic: DeliberationTopic }
-  | { type: 'ADD_ARGUMENT'; argument: Argument }
+  | { type: 'ADD_ARGUMENT', argument: Argument }
   | { type: 'START_VOTING' }
-  | { type: 'VOTE_CAST'; agentId: string; support: boolean }
+  | { type: 'VOTE_CAST', agentId: string; support: boolean }
   | { type: 'CONSENSUS_REACHED' }
   | { type: 'DEADLOCK_DETECTED' }
   | { type: 'WITHDRAW' }
@@ -96,13 +96,13 @@ export interface StateTransitionResult {
  * Actions triggered by state transitions
  */
 export type DeliberationAction =
-  | { type: 'NOTIFY_AGENTS'; message: string }
-  | { type: 'REQUEST_ARGUMENT'; agentId: string }
+  | { type: 'NOTIFY_AGENTS', message: string }
+  | { type: 'REQUEST_ARGUMENT', agentId: string }
   | { type: 'OPEN_VOTING' }
   | { type: 'TALLY_VOTES' }
   | { type: 'CONCLUDE'; outcome: 'accepted' | 'rejected' | 'withdrawn' | 'deadlocked' }
-  | { type: 'ESCALATE'; reason: string }
-  | { type: 'RECORD_DISSENT'; agentId: string };
+  | { type: 'ESCALATE', reason: string }
+  | { type: 'RECORD_DISSENT', agentId: string };
 
 const PHASE_TRANSITIONS: Record<DeliberationPhase, DeliberationEvent['type'][]> = {
   idle: ['START'],
@@ -212,7 +212,7 @@ export function processDeliberationEvent(
     case 'CONSENSUS_REACHED':
       return {
         nextPhase: 'consensus',
-        actions: [{ type: 'CONCLUDE'; outcome: 'accepted' }],
+        actions: [{ type: 'CONCLUDE', outcome: 'accepted' }],
         metadata: { finalVoteCount: session.topic.voteCount },
       };
 
@@ -220,18 +220,18 @@ export function processDeliberationEvent(
       return {
         nextPhase: 'deadlocked',
         actions: [
-          { type: 'CONCLUDE'; outcome: 'deadlocked' },
-          { type: 'ESCALATE'; reason: 'No consensus after maximum rounds' },
+          { type: 'CONCLUDE', outcome: 'deadlocked' },
+          { type: 'ESCALATE', reason: 'No consensus after maximum rounds' },
         ],
       };
 
     case 'WITHDRAW':
-      return { nextPhase: 'concluded', actions: [{ type: 'CONCLUDE'; outcome: 'withdrawn' }] };
+      return { nextPhase: 'concluded', actions: [{ type: 'CONCLUDE', outcome: 'withdrawn' }] };
 
     case 'NEXT_ROUND':
       return {
         nextPhase: session.roundNumber >= session.maxRounds ? 'voting' : 'arguing',
-        actions: [{ type: 'NOTIFY_AGENTS'; message: `Round ${session.roundNumber + 1}/${session.maxRounds}` }],
+        actions: [{ type: 'NOTIFY_AGENTS', message: `Round ${session.roundNumber + 1}/${session.maxRounds}` }],
         metadata: { roundNumber: session.roundNumber + 1 },
       };
 
