@@ -199,7 +199,7 @@ export interface OfficeState {
 // ---------------------------------------------------------------------------
 
 /** Avatar preset for agents */
-export type AgentAvatar = 'glasses' | 'hoodie' | 'suit' | 'casual' | 'robot' | 'cat' | 'dog';
+export type AgentAvatar = 'glasses' | 'hoodie' | 'suit' | 'casual' | 'robot' | 'cat' | 'dog' | 'duckbot' | 'alien' | 'wizard' | 'superhero' | 'gamer';
 
 /** Avatar preset for the owner */
 export type OwnerAvatar = 'boss' | 'casual' | 'creative';

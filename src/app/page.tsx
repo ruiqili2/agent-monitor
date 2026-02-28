@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import Navbar from "@/components/dashboard/Navbar";
 import SystemStats from "@/components/dashboard/SystemStats";
 import AgentGrid from "@/components/dashboard/AgentGrid";
@@ -10,6 +10,9 @@ import ChatWindow from "@/components/chat/ChatWindow";
 import GlobalChatPanel from "@/components/chat/GlobalChatPanel";
 import SettingsPanel from "@/components/settings/SettingsPanel";
 import MiniOffice from "@/components/office/MiniOffice";
+import TokenTracker from "@/components/TokenTracker";
+import PerformanceMetrics from "@/components/PerformanceMetrics";
+import KeyboardShortcuts from "@/components/KeyboardShortcuts";
 import { useAgents } from "@/hooks/useAgents";
 import type { AutoworkConfig, AutoworkPolicy, DashboardConfig } from "@/lib/types";
 import { clearConfig, loadConfig, saveConfig } from "@/lib/config";
@@ -23,6 +26,7 @@ const DEFAULT_AUTOWORK: AutoworkConfig = {
 
 export default function DashboardPage() {
   const [showSettings, setShowSettings] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [chatAgent, setChatAgent] = useState<string | null>(null);
   const [config, setConfig] = useState<DashboardConfig>(() => loadConfig());
   const [autoworkConfig, setAutoworkConfig] = useState<AutoworkConfig>(DEFAULT_AUTOWORK);
@@ -48,6 +52,63 @@ export default function DashboardPage() {
   const openAgent = chatAgent ? agents.find((agent) => agent.id === chatAgent) : null;
   const ownerConfig = config.owner;
   const theme = config.theme;
+
+  // Calculate aggregated token usage from all agents
+  const tokenData = useMemo(() => {
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+    let totalTokens = 0;
+
+    for (const agentId in agentStates) {
+      const state = agentStates[agentId];
+      totalInputTokens += state.inputTokens ?? 0;
+      totalOutputTokens += state.outputTokens ?? 0;
+      totalTokens += state.totalTokens ?? 0;
+    }
+
+    // Also use systemStats total as a fallback
+    const finalTotal = totalTokens || systemStats.totalTokens;
+
+    return {
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
+      totalTokens: finalTotal,
+    };
+  }, [agentStates, systemStats.totalTokens]);
+
+  // Calculate performance metrics from activity feed and agent states
+  const performanceData = useMemo(() => {
+    const tasksCompleted = activityFeed.filter(e => e.type === 'task_complete').length;
+    const tasksFailed = activityFeed.filter(e => e.type === 'task_fail' || e.type === 'error').length;
+    const totalTasks = Math.max(tasksCompleted + tasksFailed, 1);
+    const successRate = ((tasksCompleted / totalTasks) * 100);
+
+    // Calculate XP based on tokens used and tasks completed
+    const xp = Math.floor((tokenData.totalTokens / 100) + (tasksCompleted * 50));
+
+    // Calculate level (every 1000 XP = 1 level)
+    const level = Math.floor(xp / 1000) + 1;
+
+    // Calculate average response time (placeholder - would need real timing data)
+    const avgResponseTime = 2.5; // seconds (placeholder)
+
+    // Generate achievements from activity patterns
+    const achievements: string[] = [];
+    if (tasksCompleted >= 10) achievements.push('Task Master');
+    if (tokenData.totalTokens >= 50000) achievements.push('Token Hoarder');
+    if (systemStats.totalAgents >= 5) achievements.push('Team Builder');
+    if (successRate >= 95) achievements.push('Perfectionist');
+    if (systemStats.activeAgents >= 3) achievements.push('Multitasker');
+
+    return {
+      tasksCompleted,
+      avgResponseTime,
+      successRate,
+      xp,
+      level,
+      achievements,
+    };
+  }, [activityFeed, tokenData.totalTokens, systemStats.totalAgents, systemStats.activeAgents]);
 
   useEffect(() => {
     saveConfig(config);
@@ -120,6 +181,24 @@ export default function DashboardPage() {
     }
   }, [loadAutowork]);
 
+  // Handle keyboard shortcuts
+  const handleShortcut = useCallback((shortcut: string) => {
+    switch (shortcut) {
+      case 'toggle-theme':
+        setConfig(prev => ({
+          ...prev,
+          theme: prev.theme === 'dark' ? 'default' : 'dark',
+        }));
+        break;
+      case 'toggle-office':
+        // Toggle office visibility - could be implemented with a state
+        break;
+      case 'command-palette':
+        setShowSettings(prev => !prev);
+        break;
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-[var(--bg-primary)]" data-theme={theme}>
       <Navbar
@@ -154,6 +233,19 @@ export default function DashboardPage() {
 
           <div>
             <div className="space-y-6">
+              <TokenTracker
+                inputTokens={tokenData.inputTokens}
+                outputTokens={tokenData.outputTokens}
+                totalTokens={tokenData.totalTokens}
+              />
+              <PerformanceMetrics
+                tasksCompleted={performanceData.tasksCompleted}
+                avgResponseTime={performanceData.avgResponseTime}
+                successRate={performanceData.successRate}
+                xp={performanceData.xp}
+                level={performanceData.level}
+                achievements={performanceData.achievements}
+              />
               <GlobalChatPanel
                 messages={globalChatMessages}
                 connected={connected}
@@ -176,6 +268,12 @@ export default function DashboardPage() {
           </div>
         </div>
       </main>
+
+      <KeyboardShortcuts
+        isOpen={showShortcuts}
+        onClose={() => setShowShortcuts(false)}
+        onShortcut={handleShortcut}
+      />
 
       {showSettings && (
         <SettingsPanel
