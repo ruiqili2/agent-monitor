@@ -171,7 +171,7 @@ describe('localStorage persistence', () => {
   it('returns defaults when nothing stored', () => {
     const config = loadConfig();
     expect(config.theme).toBe('default');
-    expect(config.demoMode).toBe(true);
+    expect(config.demoMode).toBe(false);
   });
 
   it('saves and loads config', () => {

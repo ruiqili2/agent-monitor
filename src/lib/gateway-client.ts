@@ -13,14 +13,38 @@ export interface GatewaySessionInfo {
   key: string;
   name: string;
   emoji?: string;
+  modelProvider?: string | null;
   model: string;
+  inputTokens: number;
+  outputTokens: number;
   totalTokens: number;
   contextTokens: number;
   channel: string;
+  kind?: 'direct' | 'group' | 'global' | 'unknown';
+  label?: string | null;
+  displayName?: string | null;
+  derivedTitle?: string | null;
+  lastMessagePreview?: string | null;
   behavior: string;
   chatStatus?: string | null;
   agentStatus?: string | null;
   agentEventData?: Record<string, unknown> | null;
+  currentToolName?: string | null;
+  currentToolPhase?: string | null;
+  statusSummary?: string;
+  parentSessionId?: string | null;
+  parentSessionKey?: string | null;
+  rootSessionId?: string | null;
+  childSessionIds?: string[];
+  depth?: number;
+  sendPolicy?: 'allow' | 'deny' | null;
+  thinkingLevel?: string | null;
+  verboseLevel?: string | null;
+  reasoningLevel?: string | null;
+  elevatedLevel?: string | null;
+  avatarUrl?: string | null;
+  identityTheme?: string | null;
+  lastRunId?: string | null;
   isActive: boolean;
   isSubagent: boolean;
   lastActivity: number;
@@ -50,6 +74,18 @@ export interface GatewayStatus {
 
 /** Map behavior string → AgentBehavior */
 function toBehavior(s: string): AgentBehavior {
+  const aliasMap: Record<string, AgentBehavior> = {
+    coding: 'working',
+    tool: 'working',
+    streaming: 'working',
+    analyzing: 'thinking',
+    resting: 'idle',
+    paused: 'idle',
+  };
+  if (aliasMap[s]) {
+    return aliasMap[s];
+  }
+
   const valid: AgentBehavior[] = [
     'working', 'thinking', 'researching', 'meeting', 'deploying', 'debugging',
     'receiving_task', 'reporting', 'idle', 'coffee', 'snacking', 'toilet',

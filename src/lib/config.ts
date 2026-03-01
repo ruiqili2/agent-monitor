@@ -59,7 +59,7 @@ export const DEFAULT_CONFIG: DashboardConfig = {
   gateway: DEFAULT_GATEWAY,
   theme: 'default',
   connected: false,
-  demoMode: true,
+  demoMode: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -68,24 +68,37 @@ export const DEFAULT_CONFIG: DashboardConfig = {
 
 const STORAGE_KEY = 'agent-dashboard-config';
 
+function cloneConfig(config: DashboardConfig): DashboardConfig {
+  return {
+    agents: config.agents.map((agent) => ({ ...agent })),
+    owner: { ...config.owner },
+    gateway: { ...config.gateway },
+    theme: config.theme,
+    connected: config.connected,
+    demoMode: config.demoMode,
+  };
+}
+
 /** Load config from localStorage, falling back to defaults */
 export function loadConfig(): DashboardConfig {
-  if (typeof window === 'undefined') return { ...DEFAULT_CONFIG };
+  if (typeof window === 'undefined') return cloneConfig(DEFAULT_CONFIG);
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return applyUrlParams({ ...DEFAULT_CONFIG });
+    if (!raw) return applyUrlParams(cloneConfig(DEFAULT_CONFIG));
     const parsed = JSON.parse(raw) as Partial<DashboardConfig>;
     const config: DashboardConfig = {
-      agents: Array.isArray(parsed.agents) ? parsed.agents.slice(0, MAX_AGENTS) : DEFAULT_CONFIG.agents,
-      owner: parsed.owner ?? DEFAULT_CONFIG.owner,
-      gateway: parsed.gateway ?? DEFAULT_CONFIG.gateway,
+      agents: Array.isArray(parsed.agents)
+        ? parsed.agents.slice(0, MAX_AGENTS).map((agent) => ({ ...agent }))
+        : DEFAULT_CONFIG.agents.map((agent) => ({ ...agent })),
+      owner: { ...(parsed.owner ?? DEFAULT_CONFIG.owner) },
+      gateway: { ...(parsed.gateway ?? DEFAULT_CONFIG.gateway) },
       theme: parsed.theme ?? DEFAULT_CONFIG.theme,
       connected: false,
-      demoMode: parsed.demoMode ?? true,
+      demoMode: parsed.demoMode ?? false,
     };
     return applyUrlParams(config);
   } catch {
-    return applyUrlParams({ ...DEFAULT_CONFIG });
+    return applyUrlParams(cloneConfig(DEFAULT_CONFIG));
   }
 }
 
@@ -124,12 +137,12 @@ export function importConfig(json: string): DashboardConfig | null {
     const parsed = JSON.parse(json);
     if (!parsed.agents || !parsed.owner) return null;
     return {
-      agents: parsed.agents,
-      owner: parsed.owner,
-      gateway: parsed.gateway ?? DEFAULT_GATEWAY,
+      agents: parsed.agents.map((agent: AgentConfig) => ({ ...agent })),
+      owner: { ...parsed.owner },
+      gateway: { ...(parsed.gateway ?? DEFAULT_GATEWAY) },
       theme: parsed.theme ?? 'default',
       connected: false,
-      demoMode: true,
+      demoMode: false,
     };
   } catch {
     return null;

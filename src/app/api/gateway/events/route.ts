@@ -19,7 +19,11 @@ import {
   readOpenClawConfig,
   type SessionLiveState,
 } from '@/lib/gateway-connection';
-import { executionStateToBehavior } from '@/lib/state-mapper';
+import {
+  executionStateToBehavior,
+  getToolSnapshot,
+  summarizeExecution,
+} from '@/lib/state-mapper';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +56,7 @@ export async function GET() {
           const behavior = executionStateToBehavior(state, undefined);
           const agentName = state.agent?.identity?.name ?? state.agent?.name ?? null;
           const emoji = state.agent?.identity?.emoji ?? null;
+          const { toolName, toolPhase } = getToolSnapshot(state.agentEventData);
 
           send('state', JSON.stringify({
             sessionKey,
@@ -61,6 +66,15 @@ export async function GET() {
             behavior,
             agentName,
             emoji,
+            toolName,
+            toolPhase,
+            statusSummary: summarizeExecution({
+              behavior,
+              agentStatus: state.agentStatus,
+              chatStatus: state.chatStatus,
+              agentEventData: state.agentEventData,
+              isSubagent: sessionKey.includes('subagent'),
+            }),
             lastRunId: state.lastRunId ?? null,
           }));
         } catch {

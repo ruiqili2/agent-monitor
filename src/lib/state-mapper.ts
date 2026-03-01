@@ -143,6 +143,90 @@ export function executionStateToBehavior(
   }
 }
 
+export interface ExecutionSummaryInput {
+  behavior: AgentBehavior;
+  agentStatus?: string | null;
+  chatStatus?: string | null;
+  agentEventData?: Record<string, unknown> | null;
+  isSubagent?: boolean;
+}
+
+function toTitleCase(value: string): string {
+  return value
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (ch) => ch.toUpperCase());
+}
+
+/** Extract the currently running tool from live gateway event data. */
+export function getToolSnapshot(agentEventData?: Record<string, unknown> | null): {
+  toolName: string | null;
+  toolPhase: string | null;
+} {
+  const toolName = typeof agentEventData?.name === 'string' ? agentEventData.name : null;
+  const toolPhase = typeof agentEventData?.phase === 'string'
+    ? agentEventData.phase
+    : typeof agentEventData?.status === 'string'
+      ? agentEventData.status
+      : null;
+  return { toolName, toolPhase };
+}
+
+/** Convert raw gateway execution data into a short operator-facing status line. */
+export function summarizeExecution(input: ExecutionSummaryInput): string {
+  const { toolName, toolPhase } = getToolSnapshot(input.agentEventData);
+  const actor = input.isSubagent ? 'Subagent' : 'Agent';
+
+  if (toolName) {
+    const phase = toolPhase ? ` (${toTitleCase(toolPhase)})` : '';
+    return `${actor} running ${toolName}${phase}`;
+  }
+
+  if (input.agentStatus === 'assistant' && input.chatStatus === 'delta') {
+    return `${actor} streaming a response`;
+  }
+
+  if (input.agentStatus === 'lifecycle') {
+    const phase = typeof input.agentEventData?.phase === 'string'
+      ? toTitleCase(input.agentEventData.phase)
+      : 'Lifecycle update';
+    return `${actor} ${phase.toLowerCase()}`;
+  }
+
+  if (input.agentStatus === 'error' || input.behavior === 'panicking') {
+    return `${actor} hit an execution error`;
+  }
+
+  switch (input.behavior) {
+    case 'working':
+      return `${actor} actively working`;
+    case 'thinking':
+      return `${actor} reasoning about the next step`;
+    case 'researching':
+      return `${actor} gathering context`;
+    case 'meeting':
+      return `${actor} coordinating with the team`;
+    case 'deploying':
+      return `${actor} shipping a change`;
+    case 'debugging':
+      return `${actor} investigating a bug`;
+    case 'receiving_task':
+      return `${actor} receiving a new task`;
+    case 'reporting':
+      return `${actor} sending an update`;
+    case 'dead':
+      return `${actor} needs a reset`;
+    case 'overloaded':
+      return `${actor} is close to context limits`;
+    case 'reviving':
+      return `${actor} is restarting`;
+    case 'sleeping':
+    case 'napping':
+      return `${actor} is idle`;
+    default:
+      return `${actor} is standing by`;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Demo mode data generation
 // ---------------------------------------------------------------------------

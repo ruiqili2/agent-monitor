@@ -15,6 +15,9 @@ interface AgentGridProps {
 }
 
 export default function AgentGrid({ agents, agentStates, onChatClick, onRestart }: AgentGridProps) {
+  const mainCount = agents.filter((agent) => !agent.isSubagent).length;
+  const subCount = agents.filter((agent) => !!agent.isSubagent).length;
+
   if (agents.length === 0) {
     return (
       <div
@@ -39,6 +42,9 @@ export default function AgentGrid({ agents, agentStates, onChatClick, onRestart 
         <span>Sessions</span>
         <span className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
           ({agents.length})
+        </span>
+        <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>
+          {mainCount} primary / {subCount} subagent{subCount === 1 ? '' : 's'}
         </span>
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

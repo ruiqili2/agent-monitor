@@ -1,21 +1,50 @@
 "use client";
 
-import { useState } from "react";
-import { useAgents } from "@/hooks/useAgents";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import Navbar from "@/components/dashboard/Navbar";
 import SystemStats from "@/components/dashboard/SystemStats";
 import AgentGrid from "@/components/dashboard/AgentGrid";
 import ActivityFeed from "@/components/dashboard/ActivityFeed";
-import MiniOffice from "@/components/office/MiniOffice";
-import SettingsPanel from "@/components/settings/SettingsPanel";
+import AutoworkPanel from "@/components/dashboard/AutoworkPanel";
 import ChatWindow from "@/components/chat/ChatWindow";
-import type { DashboardConfig, ThemeName } from "@/lib/types";
-import { loadConfig, DEFAULT_OWNER } from "@/lib/config";
+import GlobalChatPanel from "@/components/chat/GlobalChatPanel";
+import SettingsPanel from "@/components/settings/SettingsPanel";
+import MiniOffice from "@/components/office/MiniOffice";
+import TokenTracker from "@/components/TokenTracker";
+import PerformanceMetrics from "@/components/PerformanceMetrics";
+import AgentMeeting from "@/components/meeting/AgentMeeting";
+import AchievementList from "@/components/achievements/AchievementList";
+import Leaderboard from "@/components/achievements/Leaderboard";
+import MetricsDashboard from "@/components/metrics/MetricsDashboard";
+import KeyboardShortcuts from "@/components/KeyboardShortcuts";
+import { useAgents } from "@/hooks/useAgents";
+import { initialAchievementState, checkAchievements } from "@/lib/achievements";
+import { initialXPState, addXP, calculateTokenXP } from "@/lib/xp";
+import type { AutoworkConfig, AutoworkPolicy, DashboardConfig } from "@/lib/types";
+import { clearConfig, loadConfig, saveConfig } from "@/lib/config";
+
+const DEFAULT_AUTOWORK: AutoworkConfig = {
+  maxSendsPerTick: 0, // Disabled by default
+  defaultDirective:
+    "Check your memory and recent context, then continue the highest-impact task for your role. Do real work now and move the task forward.",
+  policies: {},
+};
+
+type DashboardTab = 'overview' | 'achievements' | 'leaderboard' | 'metrics';
 
 export default function DashboardPage() {
   const [showSettings, setShowSettings] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [chatAgent, setChatAgent] = useState<string | null>(null);
-  const [theme, setTheme] = useState<ThemeName>("default");
+  const [config, setConfig] = useState<DashboardConfig>(() => loadConfig());
+  const [autoworkConfig, setAutoworkConfig] = useState<AutoworkConfig>(DEFAULT_AUTOWORK);
+  const [autoworkLoading, setAutoworkLoading] = useState(true);
+  const [autoworkSaving, setAutoworkSaving] = useState(false);
+  const [autoworkRunning, setAutoworkRunning] = useState(false);
+  const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
+  
+  const [achievementState, setAchievementState] = useState(initialAchievementState);
+  const [xpState, setXpState] = useState(initialXPState);
 
   const {
     agents,
@@ -25,122 +54,189 @@ export default function DashboardPage() {
     demoMode,
     connected,
     chatMessages,
+    globalChatMessages,
     sendChat,
-    setBehavior,
+    sendGlobalChat,
     restartSession,
     loadChatHistory,
-  } = useAgents();
+  } = useAgents(config.demoMode);
 
-  const openAgent = chatAgent ? agents.find((a) => a.id === chatAgent) : null;
+  const openAgent = chatAgent ? agents.find((agent) => agent.id === chatAgent) : null;
+  const ownerConfig = config.owner;
+  const theme = config.theme;
 
-  const [ownerConfig] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return loadConfig().owner;
+  useEffect(() => {
+    saveConfig(config);
+  }, [config]);
+
+  useEffect(() => {
+    const stats = {
+      tokens_sent: systemStats.totalTokens || 0,
+      tasks_completed: systemStats.completedTasks || 0,
+      meetings_attended: 0,
+      messages_sent: globalChatMessages.length,
+      days_active: 1,
+    };
+    
+    const newState = checkAchievements(achievementState, stats);
+    if (newState.totalXP !== achievementState.totalXP) {
+      const xpGained = newState.totalXP - achievementState.totalXP;
+      setXpState(prev => addXP(prev, xpGained, 'achievements', 'Achievement unlocked!'));
     }
-    return DEFAULT_OWNER;
-  });
+    setAchievementState(newState);
+  }, [systemStats.totalTokens, systemStats.completedTasks, globalChatMessages.length]);
+
+  useEffect(() => {
+    if (systemStats.totalTokens > 0) {
+      const tokenXP = calculateTokenXP(systemStats.totalTokens);
+      setXpState(prev => ({ ...prev, totalXP: prev.totalXP + tokenXP }));
+    }
+  }, [systemStats.totalTokens]);
+
+  const loadAutowork = useCallback(async () => {
+    try {
+      setAutoworkLoading(true);
+      const response = await fetch("/api/gateway/autowork");
+      const data = await response.json();
+      if (data.ok && data.config) {
+        setAutoworkConfig(data.config);
+      }
+    } catch {
+    } finally {
+      setAutoworkLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadAutowork();
+  }, [loadAutowork, connected]);
+
+  const saveAutoworkConfig = useCallback(async (patch: Partial<AutoworkConfig>) => {
+    try {
+      setAutoworkSaving(true);
+      const response = await fetch("/api/gateway/autowork", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      const data = await response.json();
+      if (data.ok && data.config) {
+        setAutoworkConfig(data.config);
+      }
+    } finally {
+      setAutoworkSaving(false);
+    }
+  }, []);
+
+  const runAutoworkNow = useCallback(async (sessionKey?: string) => {
+    try {
+      setAutoworkRunning(true);
+      await fetch("/api/gateway/autowork", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sessionKey ? { sessionKey } : {}),
+      });
+      await loadAutowork();
+    } finally {
+      setAutoworkRunning(false);
+    }
+  }, [loadAutowork]);
+
+  const renderTab = () => {
+    switch (activeTab) {
+      case 'achievements':
+        return <AchievementList achievements={achievementState.achievements} filter="all" />;
+      case 'leaderboard':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Leaderboard
+              entries={agents.map((a, i) => ({
+                rank: i + 1,
+                agentId: a.id,
+                agentName: a.name || a.id,
+                agentEmoji: a.emoji || '🤖',
+                value: agentStates[a.id]?.totalTokens || 0,
+              })).sort((a, b) => b.value - a.value)}
+              title="Top Agents by Tokens"
+              icon="📊"
+            />
+            <Leaderboard
+              entries={agents.map((a, i) => ({ rank: i + 1, agentId: a.id, agentName: a.name || a.id, agentEmoji: a.emoji || '🤖', value: 0 })).sort((a, b) => b.value - a.value)}
+              title="Top Agents by Tasks"
+              icon="✅"
+            />
+          </div>
+        );
+      case 'metrics':
+        return (
+          <MetricsDashboard
+            data={{
+              tokensSent: systemStats.totalTokens || 0,
+              tasksCompleted: systemStats.completedTasks || 0,
+              meetingsAttended: 0,
+              messagesSent: globalChatMessages.length,
+              avgResponseTime: 2.5,
+              productivityScore: 85,
+            }}
+            period="weekly"
+          />
+        );
+      default:
+        return (
+          <>
+            {/* OFFICE VIEW - PROMINENT TOP POSITION */}
+            <div className="mb-6">
+              <MiniOffice agents={agents} agentStates={agentStates} ownerConfig={ownerConfig} theme={theme} />
+            </div>
+
+            {/* AGENT GRID & SIDEBAR */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-6 mb-4 sm:mb-6">
+              <div className="xl:col-span-2">
+                <AgentGrid agents={agents} agentStates={agentStates} onChatClick={(id) => setChatAgent(id)} onRestart={restartSession} />
+              </div>
+              <div className="space-y-6">
+                <TokenTracker totalTokens={systemStats.totalTokens || 0} inputTokens={systemStats.totalTokens || 0} outputTokens={0} />
+                <PerformanceMetrics tasksCompleted={systemStats.completedTasks || 0} avgResponseTime={2.5} successRate={95} xp={xpState.totalXP} level={xpState.level} achievements={[]} />
+                <AgentMeeting agents={agents} />
+              </div>
+            </div>
+
+            {/* BOTTOM SECTION */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-6">
+              <div className="xl:col-span-2 space-y-6">
+                <ActivityFeed events={activityFeed} />
+              </div>
+              <div className="space-y-6">
+                <AutoworkPanel agents={agents} config={autoworkConfig} loading={autoworkLoading} saving={autoworkSaving} running={autoworkRunning} onSaveConfig={saveAutoworkConfig} onSavePolicy={async () => {}} onRunNow={runAutoworkNow} />
+                <SystemStats stats={systemStats} />
+              </div>
+            </div>
+          </>
+        );
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)]" data-theme={theme}>
-      <Navbar
-        connected={connected}
-        demoMode={demoMode}
-        onSettingsClick={() => setShowSettings(true)}
-      />
+      <Navbar connected={connected} demoMode={demoMode} onSettingsClick={() => setShowSettings(true)} />
 
-      <main className="pt-14 px-4 pb-8 max-w-7xl mx-auto">
-        {/* Mini Office Preview */}
-        <section className="mb-6">
-          <MiniOffice
-            agents={agents}
-            agentStates={agentStates}
-            ownerConfig={ownerConfig}
-            theme={theme}
-          />
-        </section>
-
-        {/* System Stats */}
-        <section className="mb-6">
-          <SystemStats stats={systemStats} />
-        </section>
-
-        {/* Main content: Agent Grid + Activity Feed */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <AgentGrid
-              agents={agents}
-              agentStates={agentStates}
-              onChatClick={(id) => setChatAgent(id)}
-              onRestart={(id) => restartSession(id)}
-            />
-          </div>
-          <div>
-            <ActivityFeed events={activityFeed} />
-          </div>
+      <main className="mx-auto max-w-7xl px-4 pb-8 pt-24">
+        {/* TAB NAVIGATION */}
+        <div className="flex gap-2 mb-6 overflow-x-auto">
+          <button onClick={() => setActiveTab('overview')} className={`px-4 py-2 rounded-lg font-mono text-sm transition-all ${activeTab === 'overview' ? 'bg-[var(--accent-primary)] text-white' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-white/10'}`}>📊 Overview</button>
+          <button onClick={() => setActiveTab('achievements')} className={`px-4 py-2 rounded-lg font-mono text-sm transition-all ${activeTab === 'achievements' ? 'bg-[var(--accent-primary)] text-white' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-white/10'}`}>🏆 Achievements ({achievementState.unlockedCount}/{achievementState.achievements.length})</button>
+          <button onClick={() => setActiveTab('leaderboard')} className={`px-4 py-2 rounded-lg font-mono text-sm transition-all ${activeTab === 'leaderboard' ? 'bg-[var(--accent-primary)] text-white' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-white/10'}`}>🏅 Leaderboard</button>
+          <button onClick={() => setActiveTab('metrics')} className={`px-4 py-2 rounded-lg font-mono text-sm transition-all ${activeTab === 'metrics' ? 'bg-[var(--accent-primary)] text-white' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-white/10'}`}>📈 Metrics</button>
         </div>
+
+        {/* TAB CONTENT */}
+        {renderTab()}
       </main>
 
-      {/* Settings Modal — simplified for now */}
-      {showSettings && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowSettings(false)}>
-          <div className="bg-[var(--bg-secondary)] rounded-2xl p-6 max-w-md w-full mx-4 border border-[var(--border)]" onClick={e => e.stopPropagation()}>
-            <h2 className="font-pixel text-lg mb-4" style={{ color: 'var(--text-primary)' }}>⚙️ Settings</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-mono block mb-1" style={{ color: 'var(--text-secondary)' }}>Status</label>
-                <div className="text-sm" style={{ color: connected ? 'var(--accent-success)' : 'var(--accent-warning)' }}>
-                  {connected ? '● Connected to OpenClaw Gateway' : '● Demo Mode (no gateway)'}
-                </div>
-                <div className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
-                  {connected
-                    ? `Monitoring ${agents.length} session(s)`
-                    : 'Dashboard auto-connects to local OpenClaw gateway'}
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-mono block mb-2" style={{ color: 'var(--text-secondary)' }}>Theme</label>
-                <div className="flex gap-2">
-                  {(['default', 'dark', 'cozy', 'cyberpunk'] as ThemeName[]).map(t => (
-                    <button
-                      key={t}
-                      onClick={() => setTheme(t)}
-                      className={`text-xs font-mono px-3 py-1.5 rounded-lg transition-colors ${theme === t ? 'ring-2' : ''}`}
-                      style={{
-                        backgroundColor: theme === t ? 'var(--accent-primary)' : 'var(--bg-card)',
-                        color: theme === t ? '#000' : 'var(--text-primary)',
-                        border: '1px solid var(--border)',
-                      }}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowSettings(false)}
-              className="mt-6 w-full text-sm font-mono py-2 rounded-lg hover:opacity-80 transition-opacity"
-              style={{ backgroundColor: 'var(--accent-primary)', color: '#000' }}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Chat Window */}
-      {openAgent && (
-        <ChatWindow
-          agentId={openAgent.id}
-          agentName={openAgent.name}
-          agentEmoji={openAgent.emoji}
-          agentColor={openAgent.color}
-          messages={chatMessages[openAgent.id] ?? []}
-          onSend={sendChat}
-          onClose={() => setChatAgent(null)}
-          onOpen={() => loadChatHistory(openAgent.id)}
-        />
-      )}
+      {openAgent && <ChatWindow agentId={openAgent.id} agentName={openAgent.name} agentEmoji={openAgent.emoji} agentColor={openAgent.color} messages={chatMessages[openAgent.id] || []} onSend={sendChat} onClose={() => setChatAgent(null)} />}
+      <GlobalChatPanel messages={globalChatMessages} connected={connected} demoMode={demoMode} totalAgents={agents.length} onSend={sendGlobalChat} />
+      {showSettings && <SettingsPanel config={config} connected={connected} sessionCount={1} onUpdate={setConfig} onReset={() => {}} onClose={() => setShowSettings(false)} />}
+      {showShortcuts && <KeyboardShortcuts isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />}
     </div>
   );
 }

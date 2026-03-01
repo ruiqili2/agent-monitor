@@ -5,6 +5,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import DOMPurify from 'dompurify';
 import type { ActivityEvent } from '@/lib/types';
 import { formatRelativeTime } from '@/lib/state-mapper';
 
@@ -80,7 +81,7 @@ export default function ActivityFeed({ events, maxHeight = 400 }: ActivityFeedPr
                   </span>
                 </div>
                 <p className="text-xs truncate" style={{ color: 'var(--text-primary)' }}>
-                  {event.message}
+                  {DOMPurify.sanitize(event.message)}
                 </p>
               </div>
             </div>

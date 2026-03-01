@@ -12,6 +12,7 @@ import type {
   AgentTask,
   TokenUsage,
   ActivityEvent,
+  ChatMessage,
   SystemStats,
   DashboardConfig,
   GatewayConfig,
@@ -95,6 +96,21 @@ describe('Type consistency', () => {
     expect(types).toHaveLength(8);
   });
 
+  it('ChatMessage has required shape', () => {
+    const message: ChatMessage = {
+      id: 'msg-1',
+      agentId: 'agent-1',
+      agentName: 'Atlas',
+      agentEmoji: 'A',
+      role: 'user',
+      content: 'Hello',
+      timestamp: Date.now(),
+      scope: 'direct',
+      channel: 'agent',
+    };
+    expect(message.content).toBe('Hello');
+  });
+
   it('AgentTask status union is complete', () => {
     const statuses: AgentTask['status'][] = ['active', 'completed', 'failed'];
     expect(statuses).toHaveLength(3);
@@ -112,7 +128,7 @@ describe('Type consistency', () => {
       gateway: { url: 'http://localhost', token: '' },
       theme: 'default',
       connected: false,
-      demoMode: true,
+      demoMode: false,
     };
     expect(config.agents).toEqual([]);
   });
