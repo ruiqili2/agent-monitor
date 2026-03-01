@@ -151,7 +151,7 @@ export default function ChatWindow({
           />
           <button
             onClick={handleSend}
-            className="px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+            className="w-12 sm:w-auto px-3 sm:px-4 py-2.5 sm:py-2 rounded-xl text-base sm:text-sm font-medium transition-colors touch-manipulation"
             style={{ background: agentColor, color: "#fff" }}
           >
             ↑

@@ -30,11 +30,11 @@ export default function AchievementList({ achievements, filter = 'all' }: Achiev
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
       {filtered.map(achievement => (
         <div
           key={achievement.id}
-          className={`p-4 rounded-xl border-2 transition-all ${
+          className={`p-3 sm:p-4 rounded-xl border-2 transition-all touch-manipulation ${
             achievement.unlocked
               ? 'bg-[var(--bg-card)] animate-pulse'
               : 'bg-[var(--bg-secondary)] opacity-60'

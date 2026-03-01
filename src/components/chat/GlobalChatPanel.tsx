@@ -155,7 +155,7 @@ export default function GlobalChatPanel({
           <button
             onClick={() => void handleSend()}
             disabled={sending}
-            className="px-4 py-2 rounded-xl text-sm font-mono transition-opacity disabled:opacity-50"
+            className="px-3 sm:px-4 py-2.5 sm:py-2 rounded-xl text-sm font-mono transition-opacity disabled:opacity-50 touch-manipulation min-w-[60px]"
             style={{ backgroundColor: 'var(--accent-primary)', color: '#000' }}
           >
             {sending ? '...' : 'Send'}

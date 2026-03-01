@@ -56,7 +56,7 @@ export default function EnhancedChatPanel({
   const channels = [
     { id: 'general', name: 'General', icon: '💬', count: messages.filter(m => m.scope === 'broadcast').length },
     { id: 'direct', name: 'Direct', icon: '💭', count: messages.filter(m => m.scope === 'direct').length },
-    { id: 'system', name: 'System', icon: '🖥️', count: messages.filter(m => m.scope === 'system').length },
+    { id: 'system', name: 'System', icon: '🖥️', count: messages.filter(m => m.role === 'system').length },
   ];
 
   return (

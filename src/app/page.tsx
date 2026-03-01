@@ -44,6 +44,8 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
   const [newUnlock, setNewUnlock] = useState<any>(null);
   const [levelUp, setLevelUp] = useState<{old: number, new: number, title: string, badge: string} | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [swipeStart, setSwipeStart] = useState<number | null>(null);
   
   // Achievement & XP State
   const [achievementState, setAchievementState] = useState(initialAchievementState);
@@ -169,7 +171,7 @@ export default function DashboardPage() {
         );
       case 'leaderboard':
         return (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6">
             <Leaderboard
               entries={agents.map((a, i) => ({
                 rank: i + 1,
@@ -211,8 +213,8 @@ export default function DashboardPage() {
       default:
         return (
           <>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-              <div className="lg:col-span-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-6 mb-4 sm:mb-6">
+              <div className="xl:col-span-2">
                 <AgentGrid
                   agents={agents}
                   agentStates={agentStates}
@@ -237,8 +239,8 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-6">
+              <div className="xl:col-span-2 space-y-6">
                 <MiniOffice 
                   agents={agents} 
                   agentStates={agentStates}
@@ -274,49 +276,73 @@ export default function DashboardPage() {
         onSettingsClick={() => setShowSettings(true)}
       />
 
-      <main className="mx-auto max-w-7xl px-4 pb-8 pt-24">
-        {/* Tab Navigation */}
-        <div className="flex gap-2 mb-6 overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`px-4 py-2 rounded-lg font-mono text-sm transition-all ${
-              activeTab === 'overview'
-                ? 'bg-[var(--accent-primary)] text-white'
-                : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-white/10'
-            }`}
+      <main className="mx-auto max-w-7xl px-2 sm:px-4 pb-8 pt-20 sm:pt-24">
+        {/* Mobile Tab Navigation - Horizontal Scroll with Touch */}
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-[var(--bg-primary)] border-t border-[var(--border)] md:relative md:bg-transparent md:border-none md:mb-6 -mx-2 px-2 md:mx-0 md:px-0">
+          <div 
+            className="flex md:gap-2 gap-1 overflow-x-auto scrollbar-hide py-2 md:py-0"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+            onTouchStart={(e) => setSwipeStart(e.touches[0].clientX)}
+            onTouchEnd={(e) => {
+              if (swipeStart === null) return;
+              const diff = swipeStart - e.changedTouches[0].clientX;
+              const tabs: DashboardTab[] = ['overview', 'achievements', 'leaderboard', 'metrics'];
+              const currentIdx = tabs.indexOf(activeTab);
+              if (Math.abs(diff) > 50) {
+                if (diff > 0 && currentIdx < tabs.length - 1) {
+                  setActiveTab(tabs[currentIdx + 1]);
+                } else if (diff < 0 && currentIdx > 0) {
+                  setActiveTab(tabs[currentIdx - 1]);
+                }
+              }
+              setSwipeStart(null);
+            }}
           >
-            📊 Overview
-          </button>
-          <button
-            onClick={() => setActiveTab('achievements')}
-            className={`px-4 py-2 rounded-lg font-mono text-sm transition-all ${
-              activeTab === 'achievements'
-                ? 'bg-[var(--accent-primary)] text-white'
-                : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-white/10'
-            }`}
-          >
-            🏆 Achievements ({achievementState.unlockedCount}/{achievementState.achievements.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('leaderboard')}
-            className={`px-4 py-2 rounded-lg font-mono text-sm transition-all ${
-              activeTab === 'leaderboard'
-                ? 'bg-[var(--accent-primary)] text-white'
-                : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-white/10'
-            }`}
-          >
-            🏅 Leaderboard
-          </button>
-          <button
-            onClick={() => setActiveTab('metrics')}
-            className={`px-4 py-2 rounded-lg font-mono text-sm transition-all ${
-              activeTab === 'metrics'
-                ? 'bg-[var(--accent-primary)] text-white'
-                : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-white/10'
-            }`}
-          >
-            📈 Metrics
-          </button>
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`flex-shrink-0 px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg font-mono text-xs sm:text-sm transition-all min-w-[60px] sm:min-w-auto ${
+                activeTab === 'overview'
+                  ? 'bg-[var(--accent-primary)] text-white'
+                  : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-white/10'
+              }`}
+            >
+              <span className="md:hidden text-lg">📊</span>
+              <span className="hidden md:inline">📊 Overview</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('achievements')}
+              className={`flex-shrink-0 px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg font-mono text-xs sm:text-sm transition-all min-w-[60px] sm:min-w-auto ${
+                activeTab === 'achievements'
+                  ? 'bg-[var(--accent-primary)] text-white'
+                  : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-white/10'
+              }`}
+            >
+              <span className="md:hidden text-lg">🏆</span>
+              <span className="hidden md:inline">🏆 Achievements ({achievementState.unlockedCount}/{achievementState.achievements.length})</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('leaderboard')}
+              className={`flex-shrink-0 px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg font-mono text-xs sm:text-sm transition-all min-w-[60px] sm:min-w-auto ${
+                activeTab === 'leaderboard'
+                  ? 'bg-[var(--accent-primary)] text-white'
+                  : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-white/10'
+              }`}
+            >
+              <span className="md:hidden text-lg">🏅</span>
+              <span className="hidden md:inline">🏅 Leaderboard</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('metrics')}
+              className={`flex-shrink-0 px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg font-mono text-xs sm:text-sm transition-all min-w-[60px] sm:min-w-auto ${
+                activeTab === 'metrics'
+                  ? 'bg-[var(--accent-primary)] text-white'
+                  : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-white/10'
+              }`}
+            >
+              <span className="md:hidden text-lg">📈</span>
+              <span className="hidden md:inline">📈 Metrics</span>
+            </button>
+          </div>
         </div>
 
         {/* Tab Content */}
