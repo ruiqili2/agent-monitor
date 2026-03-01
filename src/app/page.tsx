@@ -42,6 +42,8 @@ export default function DashboardPage() {
   const [autoworkSaving, setAutoworkSaving] = useState(false);
   const [autoworkRunning, setAutoworkRunning] = useState(false);
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
+  const [newUnlock, setNewUnlock] = useState<any>(null);
+  const [levelUp, setLevelUp] = useState<{old: number, new: number, title: string, badge: string} | null>(null);
   
   // Achievement & XP State
   const [achievementState, setAchievementState] = useState(initialAchievementState);
