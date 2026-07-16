@@ -21,7 +21,7 @@ const AUTOWORK_FILE = join(STATUS_DIR, 'agent-monitor-autowork.json');
 const DEFAULT_INTERVAL_MS = 10 * 60 * 1000;
 const TICK_INTERVAL_MS = 15 * 1000;
 const MIN_GAP_MS = 30 * 1000;
-const DEFAULT_MAX_SENDS = 2;
+const DEFAULT_MAX_SENDS = 0;
 const DEFAULT_DIRECTIVE =
   'Check your memory and recent context, then continue the highest-impact task for your role. ' +
   'Do real work now: open files, write code, run commands, verify results, and move the task forward. ' +

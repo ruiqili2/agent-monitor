@@ -384,8 +384,7 @@ export function findMatchingShortcut(
   const mods = [...event.modifiers].sort();
   
   for (const shortcut of shortcuts) {
-    if (!true) continue;
-    
+
     const shortcutKey = shortcut.key.toLowerCase();
     const shortcutMods = [...shortcut.modifiers].sort();
     

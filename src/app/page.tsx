@@ -18,10 +18,19 @@ import Leaderboard from "@/components/achievements/Leaderboard";
 import MetricsDashboard from "@/components/metrics/MetricsDashboard";
 import KeyboardShortcuts from "@/components/KeyboardShortcuts";
 import { useAgents } from "@/hooks/useAgents";
-import { initialAchievementState, checkAchievements } from "@/lib/achievements";
-import { initialXPState, addXP, calculateTokenXP } from "@/lib/xp";
+import { useTokenTracking } from "@/hooks/useMetrics";
+import { initialAchievementState, checkAchievements, getUnlockedAchievements } from "@/lib/achievements";
+import { calculateLevel, calculateProgress, calculateTokenXP } from "@/lib/xp";
 import type { AutoworkConfig, AutoworkPolicy, DashboardConfig } from "@/lib/types";
 import { clearConfig, loadConfig, saveConfig } from "@/lib/config";
+import {
+  calculateCompletedTasks,
+  calculateMeetings,
+  calculateMessages,
+  calculateAvgResponseTime,
+  calculateProductivityScore,
+  calculateAgentStats,
+} from "@/lib/metrics-helpers";
 
 const DEFAULT_AUTOWORK: AutoworkConfig = {
   maxSendsPerTick: 0, // Disabled by default
@@ -42,9 +51,6 @@ export default function DashboardPage() {
   const [autoworkSaving, setAutoworkSaving] = useState(false);
   const [autoworkRunning, setAutoworkRunning] = useState(false);
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
-  
-  const [achievementState, setAchievementState] = useState(initialAchievementState);
-  const [xpState, setXpState] = useState(initialXPState);
 
   const {
     agents,
@@ -61,37 +67,78 @@ export default function DashboardPage() {
     loadChatHistory,
   } = useAgents(config.demoMode);
 
-  const openAgent = chatAgent ? agents.find((agent) => agent.id === chatAgent) : null;
+  const displayAgents = useMemo(() => {
+    const overrideMap = new Map(config.agents.map((agent) => [agent.id, agent]));
+    return agents.map((agent) => {
+      const override = overrideMap.get(agent.id);
+      return override ? { ...agent, ...override } : agent;
+    });
+  }, [agents, config.agents]);
+
+  const openAgent = chatAgent ? displayAgents.find((agent) => agent.id === chatAgent) : null;
   const ownerConfig = config.owner;
   const theme = config.theme;
+  const tokenTotals = useTokenTracking(agentStates);
+  const primaryModel = displayAgents.find((agent) => agentStates[agent.id])?.model || 'unknown';
+
+  // Calculate accurate metrics from live data
+  const derivedTaskCompleted = useMemo(() => {
+    return calculateCompletedTasks(activityFeed);
+  }, [activityFeed]);
+
+  const derivedMeetings = useMemo(() => {
+    return calculateMeetings(activityFeed, agentStates, globalChatMessages);
+  }, [activityFeed, agentStates, globalChatMessages]);
+
+  const derivedMessages = useMemo(() => {
+    return calculateMessages(chatMessages, globalChatMessages, activityFeed);
+  }, [chatMessages, globalChatMessages, activityFeed]);
+
+  const derivedAvgResponseTime = useMemo(() => {
+    return calculateAvgResponseTime(activityFeed, agentStates);
+  }, [activityFeed, agentStates]);
+
+  // Calculate per-agent stats for leaderboard
+  const agentStatsMap = useMemo(() => {
+    const stats = new Map<string, ReturnType<typeof calculateAgentStats>>();
+    for (const agent of displayAgents) {
+      const state = agentStates[agent.id];
+      if (!state) continue;
+      stats.set(
+        agent.id,
+        calculateAgentStats(agent.id, agent.name || agent.id, agent.emoji || '🤖', state, activityFeed)
+      );
+    }
+    return stats;
+  }, [displayAgents, agentStates, activityFeed]);
+  const achievementState = useMemo(() => checkAchievements(initialAchievementState, {
+    tokens_sent: tokenTotals.totalTokens || 0,
+    tasks_completed: derivedTaskCompleted,
+    meetings_attended: derivedMeetings,
+    messages_sent: derivedMessages,
+    days_active: 1,
+  }), [tokenTotals.totalTokens, derivedTaskCompleted, derivedMeetings, derivedMessages]);
+
+  const unlockedAchievements = useMemo(() => getUnlockedAchievements(achievementState.achievements), [achievementState.achievements]);
+  const derivedXP = useMemo(() => achievementState.totalXP + calculateTokenXP(tokenTotals.totalTokens || 0), [achievementState.totalXP, tokenTotals.totalTokens]);
+  const derivedLevel = useMemo(() => calculateLevel(derivedXP), [derivedXP]);
+  const currentLevelBase = useMemo(() => {
+    let spent = 0;
+    for (let level = 1; level < derivedLevel; level += 1) {
+      spent += Math.floor(100 * Math.pow(1.5, level - 1));
+    }
+    return spent;
+  }, [derivedLevel]);
+  const derivedProgress = useMemo(() => calculateProgress(derivedXP - currentLevelBase, derivedLevel), [derivedXP, currentLevelBase, derivedLevel]);
+
+  const productivityScore = useMemo(() => {
+    return calculateProductivityScore(agentStates, derivedTaskCompleted, derivedMessages);
+  }, [agentStates, derivedTaskCompleted, derivedMessages]);
 
   useEffect(() => {
     saveConfig(config);
   }, [config]);
 
-  useEffect(() => {
-    const stats = {
-      tokens_sent: systemStats.totalTokens || 0,
-      tasks_completed: systemStats.completedTasks || 0,
-      meetings_attended: 0,
-      messages_sent: globalChatMessages.length,
-      days_active: 1,
-    };
-    
-    const newState = checkAchievements(achievementState, stats);
-    if (newState.totalXP !== achievementState.totalXP) {
-      const xpGained = newState.totalXP - achievementState.totalXP;
-      setXpState(prev => addXP(prev, xpGained, 'achievements', 'Achievement unlocked!'));
-    }
-    setAchievementState(newState);
-  }, [systemStats.totalTokens, systemStats.completedTasks, globalChatMessages.length]);
-
-  useEffect(() => {
-    if (systemStats.totalTokens > 0) {
-      const tokenXP = calculateTokenXP(systemStats.totalTokens);
-      setXpState(prev => ({ ...prev, totalXP: prev.totalXP + tokenXP }));
-    }
-  }, [systemStats.totalTokens]);
 
   const loadAutowork = useCallback(async () => {
     try {
@@ -101,7 +148,8 @@ export default function DashboardPage() {
       if (data.ok && data.config) {
         setAutoworkConfig(data.config);
       }
-    } catch {
+    } catch (_error) {
+      // Ignore autowork load failures; panel will show current local state until retry.
     } finally {
       setAutoworkLoading(false);
     }
@@ -118,6 +166,23 @@ export default function DashboardPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
+      });
+      const data = await response.json();
+      if (data.ok && data.config) {
+        setAutoworkConfig(data.config);
+      }
+    } finally {
+      setAutoworkSaving(false);
+    }
+  }, []);
+
+  const saveAutoworkPolicy = useCallback(async (sessionKey: string, patch: Partial<AutoworkPolicy>) => {
+    try {
+      setAutoworkSaving(true);
+      const response = await fetch("/api/gateway/autowork", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionKey, ...patch }),
       });
       const data = await response.json();
       if (data.ok && data.config) {
@@ -145,24 +210,54 @@ export default function DashboardPage() {
   const renderTab = () => {
     switch (activeTab) {
       case 'achievements':
-        return <AchievementList achievements={achievementState.achievements} filter="all" />;
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4">
+                <div className="text-xs text-[var(--text-secondary)]">Unlocked</div>
+                <div className="text-2xl font-bold text-[var(--text-primary)]">{achievementState.unlockedCount}/{achievementState.achievements.length}</div>
+              </div>
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4">
+                <div className="text-xs text-[var(--text-secondary)]">Achievement XP</div>
+                <div className="text-2xl font-bold text-[var(--accent-primary)]">{achievementState.totalXP.toLocaleString()}</div>
+              </div>
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4">
+                <div className="text-xs text-[var(--text-secondary)]">Level Progress</div>
+                <div className="text-2xl font-bold text-[var(--text-primary)]">{derivedLevel} · {derivedProgress.toFixed(0)}%</div>
+              </div>
+            </div>
+            <AchievementList achievements={achievementState.achievements} filter="all" />
+          </div>
+        );
       case 'leaderboard':
         return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Leaderboard
-              entries={agents.map((a, i) => ({
-                rank: i + 1,
-                agentId: a.id,
-                agentName: a.name || a.id,
-                agentEmoji: a.emoji || '🤖',
-                value: agentStates[a.id]?.totalTokens || 0,
-              })).sort((a, b) => b.value - a.value)}
+              entries={[...displayAgents]
+                .map((a) => ({
+                  rank: 0,
+                  agentId: a.id,
+                  agentName: a.name || a.id,
+                  agentEmoji: a.emoji || '🤖',
+                  value: agentStates[a.id]?.totalTokens || 0,
+                }))
+                .sort((a, b) => b.value - a.value)
+                .map((entry, index) => ({ ...entry, rank: index + 1 }))}
               title="Top Agents by Tokens"
               icon="📊"
             />
             <Leaderboard
-              entries={agents.map((a, i) => ({ rank: i + 1, agentId: a.id, agentName: a.name || a.id, agentEmoji: a.emoji || '🤖', value: 0 })).sort((a, b) => b.value - a.value)}
-              title="Top Agents by Tasks"
+              entries={[...displayAgents]
+                .map((a) => ({
+                  rank: 0,
+                  agentId: a.id,
+                  agentName: a.name || a.id,
+                  agentEmoji: a.emoji || '🤖',
+                  value: agentStatsMap.get(a.id)?.completedTasks || 0,
+                }))
+                .sort((a, b) => b.value - a.value)
+                .map((entry, index) => ({ ...entry, rank: index + 1 }))}
+              title="Top Agents by Completed Actions"
               icon="✅"
             />
           </div>
@@ -171,12 +266,12 @@ export default function DashboardPage() {
         return (
           <MetricsDashboard
             data={{
-              tokensSent: systemStats.totalTokens || 0,
-              tasksCompleted: systemStats.completedTasks || 0,
-              meetingsAttended: 0,
-              messagesSent: globalChatMessages.length,
-              avgResponseTime: 2.5,
-              productivityScore: 85,
+              tokensSent: tokenTotals.totalTokens || 0,
+              tasksCompleted: derivedTaskCompleted,
+              meetingsAttended: derivedMeetings,
+              messagesSent: derivedMessages,
+              avgResponseTime: derivedAvgResponseTime,
+              productivityScore,
             }}
             period="weekly"
           />
@@ -186,18 +281,52 @@ export default function DashboardPage() {
           <>
             {/* OFFICE VIEW - PROMINENT TOP POSITION */}
             <div className="mb-6">
-              <MiniOffice agents={agents} agentStates={agentStates} ownerConfig={ownerConfig} theme={theme} />
+              <MiniOffice agents={displayAgents} agentStates={agentStates} ownerConfig={ownerConfig} theme={theme} />
             </div>
 
             {/* AGENT GRID & SIDEBAR */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-6 mb-4 sm:mb-6">
               <div className="xl:col-span-2">
-                <AgentGrid agents={agents} agentStates={agentStates} onChatClick={(id) => setChatAgent(id)} onRestart={restartSession} />
+                <AgentGrid
+                  agents={displayAgents}
+                  agentStates={agentStates}
+                  onChatClick={(id) => setChatAgent(id)}
+                  onRestart={restartSession}
+                  onUpdateAgent={(id, patch) => {
+                    setConfig((prev) => {
+                      const exists = prev.agents.some((agent) => agent.id === id);
+                      return {
+                        ...prev,
+                        agents: exists
+                          ? prev.agents.map((agent) => (agent.id === id ? { ...agent, ...patch } : agent))
+                          : [...prev.agents, {
+                              id,
+                              name: patch.name ?? displayAgents.find((agent) => agent.id === id)?.name ?? id,
+                              emoji: patch.emoji ?? displayAgents.find((agent) => agent.id === id)?.emoji ?? '🤖',
+                              color: patch.color ?? displayAgents.find((agent) => agent.id === id)?.color ?? '#4FC3F7',
+                              avatar: patch.avatar ?? displayAgents.find((agent) => agent.id === id)?.avatar ?? 'glasses',
+                            }],
+                      };
+                    });
+                  }}
+                />
               </div>
               <div className="space-y-6">
-                <TokenTracker totalTokens={systemStats.totalTokens || 0} inputTokens={systemStats.totalTokens || 0} outputTokens={0} />
-                <PerformanceMetrics tasksCompleted={systemStats.completedTasks || 0} avgResponseTime={2.5} successRate={95} xp={xpState.totalXP} level={xpState.level} achievements={[]} />
-                <AgentMeeting agents={agents} />
+                <TokenTracker
+                  totalTokens={tokenTotals.totalTokens || 0}
+                  inputTokens={tokenTotals.inputTokens || 0}
+                  outputTokens={tokenTotals.outputTokens || 0}
+                  model={primaryModel}
+                />
+                <PerformanceMetrics
+                  tasksCompleted={derivedTaskCompleted}
+                  avgResponseTime={derivedAvgResponseTime}
+                  successRate={derivedTaskCompleted > 0 ? 100 : 0}
+                  xp={derivedXP}
+                  level={derivedLevel}
+                  achievements={unlockedAchievements.map((achievement) => achievement.name)}
+                />
+                <AgentMeeting agents={displayAgents} />
               </div>
             </div>
 
@@ -207,7 +336,7 @@ export default function DashboardPage() {
                 <ActivityFeed events={activityFeed} />
               </div>
               <div className="space-y-6">
-                <AutoworkPanel agents={agents} config={autoworkConfig} loading={autoworkLoading} saving={autoworkSaving} running={autoworkRunning} onSaveConfig={saveAutoworkConfig} onSavePolicy={async () => {}} onRunNow={runAutoworkNow} />
+                <AutoworkPanel agents={displayAgents} config={autoworkConfig} loading={autoworkLoading} saving={autoworkSaving} running={autoworkRunning} onSaveConfig={saveAutoworkConfig} onSavePolicy={saveAutoworkPolicy} onRunNow={runAutoworkNow} />
                 <SystemStats stats={systemStats} />
               </div>
             </div>
@@ -234,7 +363,7 @@ export default function DashboardPage() {
       </main>
 
       {openAgent && <ChatWindow agentId={openAgent.id} agentName={openAgent.name} agentEmoji={openAgent.emoji} agentColor={openAgent.color} messages={chatMessages[openAgent.id] || []} onSend={sendChat} onClose={() => setChatAgent(null)} />}
-      <GlobalChatPanel messages={globalChatMessages} connected={connected} demoMode={demoMode} totalAgents={agents.length} onSend={sendGlobalChat} />
+      <GlobalChatPanel messages={globalChatMessages} connected={connected} demoMode={demoMode} totalAgents={displayAgents.length} onSend={sendGlobalChat} />
       {showSettings && <SettingsPanel config={config} connected={connected} sessionCount={1} onUpdate={setConfig} onReset={() => {}} onClose={() => setShowSettings(false)} />}
       {showShortcuts && <KeyboardShortcuts isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />}
     </div>

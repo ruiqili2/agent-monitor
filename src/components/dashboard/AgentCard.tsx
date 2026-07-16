@@ -6,7 +6,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import type { AgentConfig, AgentDashboardState } from '@/lib/types';
+import type { AgentAvatar, AgentConfig, AgentDashboardState } from '@/lib/types';
+import { AVATAR_OPTIONS, AGENT_COLOR_PALETTE } from '@/lib/config';
 import { BEHAVIOR_INFO, formatTokens, formatRelativeTime } from '@/lib/state-mapper';
 import StatusBadge from '@/components/shared/StatusBadge';
 import { drawAgent } from '@/sprites/characters';
@@ -16,6 +17,7 @@ interface AgentCardProps {
   state: AgentDashboardState | undefined;
   onChatClick: (agentId: string) => void;
   onRestart?: (agentId: string) => void;
+  onUpdateAgent?: (agentId: string, patch: Partial<AgentConfig>) => void;
 }
 
 function PixelAvatar({ agent, size = 48 }: { agent: AgentConfig; size?: number }) {
@@ -61,9 +63,90 @@ function TokenBar({ used, max }: { used: number; max: number }) {
   );
 }
 
-export default function AgentCard({ agent, state, onChatClick, onRestart }: AgentCardProps) {
+function AgentQuickEditor({
+  agent,
+  onUpdate,
+  onClose,
+}: {
+  agent: AgentConfig;
+  onUpdate: (patch: Partial<AgentConfig>) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="absolute inset-x-3 top-3 z-20 rounded-xl border p-3 shadow-2xl"
+      style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--accent-primary)' }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+          Edit {agent.name}
+        </div>
+        <button
+          onClick={onClose}
+          className="rounded px-2 py-1 text-xs hover:bg-white/10"
+          style={{ color: 'var(--text-secondary)' }}
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 mb-3">
+        <input
+          value={agent.name}
+          onChange={(event) => onUpdate({ name: event.target.value })}
+          placeholder="Name"
+          className="rounded-lg border px-3 py-1.5 text-sm"
+          style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+        />
+        <input
+          value={agent.emoji}
+          onChange={(event) => onUpdate({ emoji: event.target.value })}
+          placeholder="Emoji"
+          className="rounded-lg border px-3 py-1.5 text-sm"
+          style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+        />
+      </div>
+
+      <div className="mb-3">
+        <div className="mb-1 text-xs" style={{ color: 'var(--text-secondary)' }}>Avatar</div>
+        <div className="flex flex-wrap gap-1">
+          {AVATAR_OPTIONS.map((avatar) => (
+            <button
+              key={avatar}
+              onClick={() => onUpdate({ avatar: avatar as AgentAvatar })}
+              className="rounded-md border px-2 py-1 text-xs transition-colors"
+              style={agent.avatar === avatar
+                ? { borderColor: 'var(--accent-primary)', color: 'var(--accent-primary)', backgroundColor: 'color-mix(in srgb, var(--accent-primary) 10%, transparent)' }
+                : { borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+            >
+              {avatar}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="mb-1 text-xs" style={{ color: 'var(--text-secondary)' }}>Color</div>
+        <div className="flex flex-wrap gap-2">
+          {AGENT_COLOR_PALETTE.map((color) => (
+            <button
+              key={color}
+              onClick={() => onUpdate({ color })}
+              className={`h-6 w-6 rounded-full border-2 transition-transform ${agent.color === color ? 'scale-110 border-white' : 'border-transparent'}`}
+              style={{ backgroundColor: color }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function AgentCard({ agent, state, onChatClick, onRestart, onUpdateAgent }: AgentCardProps) {
   const [relativeTime, setRelativeTime] = useState('');
   const [restarting, setRestarting] = useState(false);
+  const [editing, setEditing] = useState(false);
   const behavior = state?.behavior ?? 'idle';
   const info = BEHAVIOR_INFO[behavior];
   const isAnomaly = info.category === 'anomaly';
@@ -104,6 +187,14 @@ export default function AgentCard({ agent, state, onChatClick, onRestart }: Agen
           boxShadow: `inset 0 0 30px ${info.neonColor}10, 0 0 30px ${info.neonColor}10`,
         }}
       />
+
+      {editing && onUpdateAgent && (
+        <AgentQuickEditor
+          agent={agent}
+          onUpdate={(patch) => onUpdateAgent(agent.id, patch)}
+          onClose={() => setEditing(false)}
+        />
+      )}
 
       {/* Header: Avatar + Name + Status */}
       <div className="flex items-start gap-3 mb-3">
@@ -182,7 +273,13 @@ export default function AgentCard({ agent, state, onChatClick, onRestart }: Agen
 
       {/* Token bar */}
       <div className="mb-2">
-        <TokenBar used={state?.totalTokens ?? 0} max={state?.contextTokens || 128000} />
+        {state?.usageKnown === false ? (
+          <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>
+            Tokens not reported
+          </span>
+        ) : (
+          <TokenBar used={state?.totalTokens ?? 0} max={state?.contextTokens || 128000} />
+        )}
       </div>
 
       {agent.lastMessagePreview && (
@@ -209,6 +306,15 @@ export default function AgentCard({ agent, state, onChatClick, onRestart }: Agen
               style={isAnomaly ? { color: 'var(--accent-danger)' } : undefined}
             >
               {restarting ? '⏳' : '🔄'}
+            </button>
+          )}
+          {onUpdateAgent && (
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditing((v) => !v); }}
+              className="p-1 rounded hover:bg-white/10 transition-colors text-sm"
+              title="Edit agent"
+            >
+              ✏️
             </button>
           )}
           <button

@@ -18,6 +18,7 @@ export interface GatewaySessionInfo {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  usageKnown?: boolean;
   contextTokens: number;
   channel: string;
   kind?: 'direct' | 'group' | 'global' | 'unknown';

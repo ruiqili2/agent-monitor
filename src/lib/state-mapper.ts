@@ -102,44 +102,71 @@ export function behaviorToOfficeState(behavior: AgentBehavior): AgentState {
 /**
  * Derive an AgentBehavior from real-time gateway event state.
  *
- * Pure 1:1 mapping from chatStatus (ChatEvent.state) to behavior — no
- * time-based logic, no agentStatus checks.
- *
- * Mapping:
- * - chatStatus "delta"   → working
- * - chatStatus "final"   → idle
- * - chatStatus "aborted" → dead
- * - chatStatus "error"   → panicking
- * - chatStatus null      → idle (no chat events seen)
- *
- * This function exists for backward compat with the pixel-art office view.
- * It should be refactored later to let the UI interpret raw statuses directly.
+ * Priority:
+ * 1. Hard failure / abort states
+ * 2. Active tool execution
+ * 3. Active lifecycle / assistant streaming states
+ * 4. Chat completion states
+ * 5. Fallback idle
  */
 export function executionStateToBehavior(
   live: SessionLiveState | undefined,
   abortedLastRun: boolean | undefined,
 ): AgentBehavior {
-  // If abortedLastRun is set in session metadata and we have no live state
-  // contradicting it, treat as dead
   if (abortedLastRun && (!live || !live.chatStatus || live.chatStatus === 'aborted')) {
     return 'dead';
   }
 
-  if (!live || !live.chatStatus) {
+  if (!live) {
     return 'idle';
+  }
+
+  if (live.chatStatus === 'aborted') {
+    return 'dead';
+  }
+
+  if (live.chatStatus === 'error' || live.agentStatus === 'error') {
+    return 'panicking';
+  }
+
+  const { toolName, toolPhase } = getToolSnapshot(live.agentEventData);
+  const loweredTool = toolName?.toLowerCase() ?? '';
+  const loweredPhase = toolPhase?.toLowerCase() ?? '';
+
+  if (live.agentStatus === 'tool' || toolName) {
+    if (loweredTool.includes('search') || loweredTool.includes('fetch') || loweredTool.includes('read')) {
+      return 'researching';
+    }
+    if (loweredTool.includes('debug') || loweredTool.includes('test')) {
+      return 'debugging';
+    }
+    if (loweredTool.includes('deploy') || loweredTool.includes('publish') || loweredTool.includes('release')) {
+      return 'deploying';
+    }
+    return 'working';
+  }
+
+  if (live.agentStatus === 'lifecycle') {
+    if (loweredPhase.includes('start') || loweredPhase.includes('spawn')) {
+      return 'receiving_task';
+    }
+    if (loweredPhase.includes('compact') || loweredPhase.includes('prepare')) {
+      return 'thinking';
+    }
+    return 'working';
+  }
+
+  if (live.agentStatus === 'assistant' && live.chatStatus === 'delta') {
+    return 'working';
   }
 
   switch (live.chatStatus) {
     case 'delta':
       return 'working';
     case 'final':
-      return 'idle';
-    case 'aborted':
-      return 'dead';
-    case 'error':
-      return 'panicking';
+      return 'reporting';
     default:
-      return 'idle';
+      return live.agentStatus && live.agentStatus !== 'assistant' ? 'working' : 'idle';
   }
 }
 

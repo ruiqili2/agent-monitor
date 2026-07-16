@@ -104,12 +104,12 @@ export default function AgentDetail({ agent, state, onChatClick }: AgentDetailPr
             />
             <DetailStat
               label="TOTAL TOKENS"
-              value={formatTokens(state?.totalTokens ?? 0)}
+              value={state?.usageKnown === false ? 'unknown' : formatTokens(state?.totalTokens ?? 0)}
               color="var(--accent-warning)"
             />
             <DetailStat
               label="INPUT / OUTPUT"
-              value={`${formatTokens(state?.inputTokens ?? 0)} / ${formatTokens(state?.outputTokens ?? 0)}`}
+              value={state?.usageKnown === false ? 'unknown / unknown' : `${formatTokens(state?.inputTokens ?? 0)} / ${formatTokens(state?.outputTokens ?? 0)}`}
               color="var(--accent-success)"
             />
             <DetailStat

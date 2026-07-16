@@ -6,6 +6,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { behaviorToOfficeState, pollGateway, GatewayPoller } from '@/lib/gateway-client';
 import type { AgentBehavior } from '@/lib/types';
 
+const setMockFetch = (impl: any) => {
+  global.fetch = vi.fn().mockImplementation(impl) as unknown as typeof fetch;
+};
+
 // ---------------------------------------------------------------------------
 // behaviorToOfficeState (gateway-client's copy)
 // ---------------------------------------------------------------------------
@@ -49,7 +53,7 @@ describe('pollGateway', () => {
   });
 
   it('returns online status with sessions when API succeeds', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    setMockFetch(() => Promise.resolve({
       ok: true,
       json: () => Promise.resolve({
         ok: true,
@@ -71,7 +75,7 @@ describe('pollGateway', () => {
           aborted: false,
         }],
       }),
-    });
+    }));
 
     const status = await pollGateway({ url: 'http://localhost', token: '' });
     expect(status.online).toBe(true);
@@ -81,29 +85,29 @@ describe('pollGateway', () => {
   });
 
   it('returns offline when fetch throws', async () => {
-    global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
+    setMockFetch(() => Promise.reject(new Error('Network error')));
     const status = await pollGateway({ url: 'http://localhost', token: '' });
     expect(status.online).toBe(false);
     expect(status.sessions).toHaveLength(0);
   });
 
   it('returns offline when response is not ok', async () => {
-    global.fetch = vi.fn().mockResolvedValue({ ok: false });
+    setMockFetch(() => Promise.resolve({ ok: false }));
     const status = await pollGateway({ url: 'http://localhost', token: '' });
     expect(status.online).toBe(false);
   });
 
   it('returns offline when API returns ok=false', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    setMockFetch(() => Promise.resolve({
       ok: true,
       json: () => Promise.resolve({ ok: false, error: 'not connected' }),
-    });
+    }));
     const status = await pollGateway({ url: 'http://localhost', token: '' });
     expect(status.online).toBe(false);
   });
 
   it('maps unknown behavior to idle', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    setMockFetch(() => Promise.resolve({
       ok: true,
       json: () => Promise.resolve({
         ok: true,
@@ -125,7 +129,7 @@ describe('pollGateway', () => {
           aborted: false,
         }],
       }),
-    });
+    }));
 
     const status = await pollGateway({ url: 'http://localhost', token: '' });
     expect(status.agentBehaviors['test-1']).toBe('idle');
@@ -133,7 +137,7 @@ describe('pollGateway', () => {
   });
 
   it('handles multiple sessions', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    setMockFetch(() => Promise.resolve({
       ok: true,
       json: () => Promise.resolve({
         ok: true,
@@ -145,7 +149,7 @@ describe('pollGateway', () => {
           { id: 's3', key: 'k3', name: 'A3', model: 'm', totalTokens: 0, contextTokens: 0, channel: 'webchat', behavior: 'panicking', isActive: true, isSubagent: false, lastActivity: 0, updatedAt: 0, aborted: true },
         ],
       }),
-    });
+    }));
 
     const status = await pollGateway({ url: 'http://localhost', token: '' });
     expect(status.sessions).toHaveLength(3);
@@ -163,7 +167,7 @@ describe('GatewayPoller', () => {
   const originalFetch = global.fetch;
 
   beforeEach(() => {
-    global.fetch = vi.fn().mockResolvedValue({
+    setMockFetch(() => Promise.resolve({
       ok: true,
       json: () => Promise.resolve({
         ok: true,
@@ -171,7 +175,7 @@ describe('GatewayPoller', () => {
         count: 0,
         sessions: [],
       }),
-    });
+    }));
   });
 
   afterEach(() => {

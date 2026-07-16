@@ -323,6 +323,7 @@ export interface AgentDashboardState {
   inputTokens?: number;
   outputTokens?: number;
   totalTokens: number;
+  usageKnown?: boolean;
   contextTokens?: number;
   maxContextTokens?: number;
   totalTasks: number;

@@ -101,6 +101,8 @@ export async function GET() {
         agentName = readBotName() ?? agentId.charAt(0).toUpperCase() + agentId.slice(1);
       }
 
+      const usageKnown = typeof s.inputTokens === 'number' || typeof s.outputTokens === 'number' || typeof s.totalTokens === 'number';
+
       return {
         id: s.sessionId ?? s.key,
         key: s.key,
@@ -111,6 +113,7 @@ export async function GET() {
         inputTokens: s.inputTokens ?? 0,
         outputTokens: s.outputTokens ?? 0,
         totalTokens: s.totalTokens ?? 0,
+        usageKnown,
         contextTokens: s.contextTokens ?? 0,
         channel: s.lastChannel ?? s.channel ?? 'default',
         kind: s.kind ?? 'unknown',

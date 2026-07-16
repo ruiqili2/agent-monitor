@@ -163,7 +163,7 @@ export function checkAchievements(state: AchievementState, stats: {
   days_active: number;
 }): AchievementState {
   const newState = { ...state };
-  let newlyUnlocked: Achievement[] = [];
+  const newlyUnlocked: Achievement[] = [];
   
   newState.achievements = newState.achievements.map(achievement => {
     if (achievement.unlocked) return achievement;

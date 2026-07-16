@@ -32,10 +32,10 @@ export default function MetricsDashboard({ data, period }: MetricsDashboardProps
   const metrics = [
     { label: 'Tokens Sent', value: formatNumber(data.tokensSent), icon: '📊', color: '#3B82F6' },
     { label: 'Tasks Completed', value: formatNumber(data.tasksCompleted), icon: '✅', color: '#10B981' },
-    { label: 'Meetings', value: formatNumber(data.meetingsAttended), icon: '💬', color: '#8B5CF6' },
-    { label: 'Messages', value: formatNumber(data.messagesSent), icon: '💭', color: '#F59E0B' },
-    { label: 'Avg Response', value: `${data.avgResponseTime.toFixed(1)}s`, icon: '⚡', color: '#EF4444' },
-    { label: 'Productivity', value: `${data.productivityScore}%`, icon: '📈', color: getScoreColor(data.productivityScore) },
+    { label: 'Broadcasts', value: formatNumber(data.meetingsAttended), icon: '📢', color: '#8B5CF6' },
+    { label: 'Messages Sent', value: formatNumber(data.messagesSent), icon: '💭', color: '#F59E0B' },
+    { label: 'Avg Response', value: data.avgResponseTime > 0 ? `${data.avgResponseTime.toFixed(1)}s` : 'n/a', icon: '⚡', color: '#EF4444' },
+    { label: 'Activity Score', value: `${data.productivityScore}%`, icon: '📈', color: getScoreColor(data.productivityScore) },
   ];
 
   return (
